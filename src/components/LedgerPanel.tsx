@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
 import { ChevronDown, ChevronRight, Calendar, Settings, Trash2 } from "lucide-react";
@@ -80,6 +81,8 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [manageBlock, setManageBlock] = useState<Block | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Block | null>(null);
+  const [deleteConfirmStrong, setDeleteConfirmStrong] = useState<Block | null>(null);
+  const [deleteInputText, setDeleteInputText] = useState("");
 
   const toggleBand = (bandId: string) => {
     setExpandedBands((prev) => {
@@ -105,15 +108,30 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
     });
   };
 
+  const handleDeleteFirstConfirm = (block: Block) => {
+    const hasExecuted = block.rows.some(r => r.executed);
+    if (hasExecuted) {
+      // Show second confirmation for executed rows
+      setDeleteConfirm(null);
+      setDeleteConfirmStrong(block);
+      setDeleteInputText("");
+    } else {
+      // No executed rows, delete immediately
+      handleDeleteBlock(block);
+    }
+  };
+
   const handleDeleteBlock = (block: Block) => {
     const hasExecuted = block.rows.some(r => r.executed);
     deleteBlock(block.id);
     toast.success(
       hasExecuted 
-        ? "Block deleted and balances reversed" 
+        ? "Block deleted. Executed rows reversed." 
         : "Block deleted"
     );
     setDeleteConfirm(null);
+    setDeleteConfirmStrong(null);
+    setDeleteInputText("");
   };
 
   const getBaseName = (baseId?: string) => {
@@ -391,26 +409,74 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
         onDelete={(block) => setDeleteConfirm(block)}
       />
 
+      {/* First confirmation dialog - always shown */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this block?</AlertDialogTitle>
             <AlertDialogDescription>
               This removes the block and all its rows from this pay period.
-              {deleteConfirm?.rows.some(r => r.executed) && (
-                <span className="block mt-2 text-destructive font-medium">
-                  ⚠️ Executed rows will be un-executed and balances will be reversed.
-                </span>
-              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteConfirm && handleDeleteBlock(deleteConfirm)}
+              onClick={() => deleteConfirm && handleDeleteFirstConfirm(deleteConfirm)}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Second confirmation dialog - only for executed rows */}
+      <AlertDialog open={!!deleteConfirmStrong} onOpenChange={(open) => {
+        if (!open) {
+          setDeleteConfirmStrong(null);
+          setDeleteInputText("");
+        }
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>This block has executed rows.</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>Executed rows will be un-executed.</li>
+                  <li>All balance changes will be reversed.</li>
+                  <li>This action cannot be undone.</li>
+                </ul>
+                <div className="pt-4">
+                  <label htmlFor="delete-confirm-input" className="text-sm font-medium block mb-2">
+                    Type <span className="font-mono font-bold">DELETE</span> to confirm:
+                  </label>
+                  <Input
+                    id="delete-confirm-input"
+                    type="text"
+                    value={deleteInputText}
+                    onChange={(e) => setDeleteInputText(e.target.value)}
+                    placeholder="Type DELETE to confirm"
+                    className="font-mono"
+                    autoComplete="off"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setDeleteConfirmStrong(null);
+              setDeleteInputText("");
+            }}>
+              Back
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmStrong && handleDeleteBlock(deleteConfirmStrong)}
+              disabled={deleteInputText !== "DELETE"}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
