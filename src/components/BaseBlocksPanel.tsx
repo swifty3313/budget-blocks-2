@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
 import { Building2, Plus } from "lucide-react";
 import { ManageBasesDialog } from "./ManageBasesDialog";
-import { getTextColorForBackground } from "@/lib/colorUtils";
+import { adjustColorForContrast } from "@/lib/colorUtils";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -17,14 +17,40 @@ const formatCurrency = (amount: number) => {
 
 const getBaseColor = (type: string) => {
   const colors: Record<string, string> = {
-    'Checking': 'bg-primary/10 text-primary',
-    'Savings': 'bg-secondary/10 text-secondary',
-    'Credit': 'bg-destructive/10 text-destructive',
-    'Loan': 'bg-warning/10 text-warning',
-    'Vault': 'bg-accent/10 text-accent',
-    'Goal': 'bg-success/10 text-success',
+    'Checking': 'bg-primary/10 text-primary border-primary/20',
+    'Savings': 'bg-secondary/10 text-secondary border-secondary/20',
+    'Credit': 'bg-destructive/10 text-destructive border-destructive/20',
+    'Loan': 'bg-warning/10 text-warning border-warning/20',
+    'Vault': 'bg-accent/10 text-accent border-accent/20',
+    'Goal': 'bg-success/10 text-success border-success/20',
   };
-  return colors[type] || 'bg-muted text-muted-foreground';
+  return colors[type] || 'bg-muted text-muted-foreground border-border';
+};
+
+const getBadgeStyles = (tagColor: string | undefined) => {
+  if (!tagColor) return {};
+  
+  // Create a light tint background (10% opacity)
+  const rgb = parseInt(tagColor.slice(1), 16);
+  const r = (rgb >> 16) & 255;
+  const g = (rgb >> 8) & 255;
+  const b = rgb & 255;
+  
+  return {
+    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.1)`,
+    color: adjustColorForContrast(tagColor),
+    borderColor: `rgba(${r}, ${g}, ${b}, 0.2)`,
+  };
+};
+
+const getAmountColor = (tagColor: string | undefined, balance: number) => {
+  if (!tagColor) {
+    return balance >= 0 ? 'text-kpi-positive' : 'text-kpi-negative';
+  }
+  
+  // Use adjusted color for better contrast
+  const adjustedColor = adjustColorForContrast(tagColor);
+  return adjustedColor;
 };
 
 export function BaseBlocksPanel() {
@@ -67,7 +93,11 @@ export function BaseBlocksPanel() {
                       </CardDescription>
                     )}
                   </div>
-                  <Badge variant="secondary" className={`${getBaseColor(base.type)} text-xs px-1.5 py-0 shrink-0`}>
+                  <Badge 
+                    variant="outline" 
+                    className={`text-xs px-1.5 py-0 shrink-0 ${!base.tagColor ? getBaseColor(base.type) : 'border'}`}
+                    style={base.tagColor ? getBadgeStyles(base.tagColor) : undefined}
+                  >
                     {base.type}
                   </Badge>
                 </div>
@@ -76,23 +106,12 @@ export function BaseBlocksPanel() {
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
                     <span className="text-xs text-muted-foreground">Balance</span>
-                    {base.tagColor ? (
-                      <span 
-                        className="text-lg font-bold px-2 py-0.5 rounded"
-                        style={{ 
-                          backgroundColor: base.tagColor,
-                          color: getTextColorForBackground(base.tagColor)
-                        }}
-                      >
-                        {formatCurrency(base.balance)}
-                      </span>
-                    ) : (
-                      <span className={`text-lg font-bold ${
-                        base.balance >= 0 ? 'text-kpi-positive' : 'text-kpi-negative'
-                      }`}>
-                        {formatCurrency(base.balance)}
-                      </span>
-                    )}
+                    <span 
+                      className={`text-lg font-bold ${!base.tagColor ? getAmountColor(base.tagColor, base.balance) : ''}`}
+                      style={base.tagColor ? { color: getAmountColor(base.tagColor, base.balance) } : undefined}
+                    >
+                      {formatCurrency(base.balance)}
+                    </span>
                   </div>
                   {base.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">

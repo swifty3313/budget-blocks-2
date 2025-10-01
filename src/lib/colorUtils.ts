@@ -77,3 +77,24 @@ export function getTextColorForBackground(backgroundColor: string): string {
   const luminance = getLuminance(rgb.r, rgb.g, rgb.b);
   return luminance > 0.5 ? '#000000' : '#FFFFFF';
 }
+
+// Darken a color for better contrast
+export function darkenColor(color: string, factor: number = 0.7): string {
+  const rgb = hexToRgb(color);
+  if (!rgb) return color;
+  
+  const r = Math.floor(rgb.r * factor);
+  const g = Math.floor(rgb.g * factor);
+  const b = Math.floor(rgb.b * factor);
+  
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+}
+
+// Adjust color for better contrast against background
+export function adjustColorForContrast(color: string, isDarkMode: boolean = false): string {
+  const { isGood } = hasGoodContrast(color, isDarkMode);
+  if (isGood) return color;
+  
+  // If contrast is poor, darken the color
+  return darkenColor(color, 0.6);
+}

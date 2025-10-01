@@ -185,7 +185,7 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
               </div>
 
               <div className="space-y-2">
-                <Label>Tag Color (optional)</Label>
+                <Label>Type Color (optional)</Label>
                 <div className="grid grid-cols-5 gap-2">
                   {COLOR_PALETTE.map((color) => (
                     <button
