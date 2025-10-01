@@ -9,8 +9,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, Calendar, Pencil, Info } from "lucide-react";
+import { Plus, Trash2, Calendar, Pencil, Info, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
@@ -52,6 +54,12 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
   const [basisMode, setBasisMode] = useState<'manual' | 'band' | 'calculator'>('manual');
   const [enforceFullAllocation, setEnforceFullAllocation] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  
+  // Compact mode state with localStorage persistence
+  const [isCompact, setIsCompact] = useState(() => {
+    const stored = localStorage.getItem('flow-modal-compact');
+    return stored ? JSON.parse(stored) : false;
+  });
   
   const [rows, setRows] = useState<Row[]>([]);
 
@@ -203,10 +211,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
           toast.error("Flow rows must have a type (Transfer, Payment, etc.)");
           return;
         }
-        if (!row.category?.trim()) {
-          toast.error("Flow rows must have a category");
-          return;
-        }
+        // Category is optional for Flow blocks
         // Flow-specific validation
         const hasPercentRows = rows.some(r => r.flowMode === '%');
         if (hasPercentRows && !allocationBasis) {
@@ -305,6 +310,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
     setBasisMode('manual');
     setEnforceFullAllocation(false);
     setSelectedTemplateId("");
+    // Don't reset isCompact - it persists across sessions
   };
 
   const handleInsertTemplate = (template: any) => {
@@ -438,12 +444,27 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
             {blockType === 'Flow' && (
               <div className="p-4 border rounded-lg bg-accent/5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-sm">Flow Allocation Overview</h4>
-                  {basisSource === 'calculator' && (
-                    <Badge variant="outline" className="text-xs">
-                      Basis from Calculator
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-semibold text-sm">Flow Allocation Overview</h4>
+                    {basisSource === 'calculator' && (
+                      <Badge variant="outline" className="text-xs">
+                        Basis from Calculator
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="compact-toggle" className="text-xs text-muted-foreground cursor-pointer">
+                      Compact columns
+                    </Label>
+                    <Switch
+                      id="compact-toggle"
+                      checked={isCompact}
+                      onCheckedChange={(checked) => {
+                        setIsCompact(checked);
+                        localStorage.setItem('flow-modal-compact', JSON.stringify(checked));
+                      }}
+                    />
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-4 gap-3">
@@ -701,13 +722,15 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
 
               {/* Scrollable container - vertical only */}
               <div className="border rounded-lg max-h-[500px] overflow-y-auto">
-                <div className="space-y-2 p-2">
+                <div className={`space-y-2 ${isCompact ? 'p-1' : 'p-2'}`}>
                   {rows.map((row, idx) => (
-                    <Card key={row.id} className="p-3">
-                      <div className="grid grid-cols-12 gap-2 items-start">
+                    <Card key={row.id} className={isCompact ? 'p-2' : 'p-3'}>
+                      <div className={`grid grid-cols-12 items-start ${isCompact ? 'gap-1 text-xs' : 'gap-2'}`}>
                         {/* Owner */}
-                        <div className="col-span-2 space-y-1">
-                          <Label className="text-xs text-muted-foreground">Owner *</Label>
+                        <div className={`space-y-1 ${isCompact ? 'col-span-2' : 'col-span-2'}`}>
+                          <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                            {isCompact ? 'Owner' : 'Owner'} *
+                          </Label>
                           <Select
                             value={row.owner}
                             onValueChange={(value) => {
@@ -721,7 +744,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               }
                             }}
                           >
-                            <SelectTrigger className="h-8 text-xs">
+                            <SelectTrigger className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}>
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent>
@@ -737,9 +760,9 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                         </div>
 
                         {/* Source/Vendor */}
-                        <div className="col-span-2 space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            {blockType === 'Income' ? 'Source' : 
+                        <div className={`space-y-1 ${isCompact ? 'col-span-2' : 'col-span-2'}`}>
+                          <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                            {isCompact ? 'Src' : blockType === 'Income' ? 'Source' : 
                              blockType === 'Fixed Bill' ? 'Vendor' : 
                              'Source/Desc'}
                           </Label>
@@ -751,19 +774,21 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               blockType === 'Fixed Bill' ? "Vendor" :
                               "Description"
                             }
-                            className="h-8 text-xs"
+                            className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}
                           />
                         </div>
 
                         {/* From Base */}
                         {(blockType === 'Fixed Bill' || blockType === 'Flow') && (
-                          <div className="col-span-2 space-y-1">
-                            <Label className="text-xs text-muted-foreground">From Base *</Label>
+                          <div className={`space-y-1 ${isCompact ? 'col-span-2' : 'col-span-2'}`}>
+                            <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                              {isCompact ? 'From' : 'From Base'} *
+                            </Label>
                             <Select
                               value={row.fromBaseId || ""}
                               onValueChange={(value) => updateRow(row.id, { fromBaseId: value })}
                             >
-                              <SelectTrigger className="h-8 text-xs">
+                              <SelectTrigger className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}>
                                 <SelectValue placeholder="From" />
                               </SelectTrigger>
                               <SelectContent>
@@ -779,15 +804,16 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
 
                         {/* To Base */}
                         {(blockType === 'Income' || blockType === 'Flow') && (
-                          <div className="col-span-2 space-y-1">
-                            <Label className="text-xs text-muted-foreground">
-                              {blockType === 'Income' ? 'To Base *' : 'To Base'}
+                          <div className={`space-y-1 ${isCompact ? 'col-span-2' : 'col-span-2'}`}>
+                            <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                              {isCompact ? 'To' : blockType === 'Income' ? 'To Base *' : 'To Base'}
+                              {blockType === 'Income' && ' *'}
                             </Label>
                             <Select
                               value={row.toBaseId || ""}
                               onValueChange={(value) => updateRow(row.id, { toBaseId: value })}
                             >
-                              <SelectTrigger className="h-8 text-xs">
+                              <SelectTrigger className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}>
                                 <SelectValue placeholder={blockType === 'Flow' ? "To (opt)" : "To"} />
                               </SelectTrigger>
                               <SelectContent>
@@ -805,7 +831,9 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                         {blockType === 'Flow' && (
                           <>
                             <div className="col-span-1 space-y-1">
-                              <Label className="text-xs text-muted-foreground">Mode *</Label>
+                              <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                                {isCompact ? 'Mod' : 'Mode'} *
+                              </Label>
                               <Select
                                 value={row.flowMode || 'Fixed'}
                                 onValueChange={(value: 'Fixed' | '%') => {
@@ -815,7 +843,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                                   updateRow(row.id, { flowMode: value, amount: newAmount });
                                 }}
                               >
-                                <SelectTrigger className="h-8 text-xs">
+                                <SelectTrigger className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}>
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -825,7 +853,9 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               </Select>
                             </div>
                             <div className="col-span-1 space-y-1">
-                              <Label className="text-xs text-muted-foreground">Value *</Label>
+                              <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                                {isCompact ? 'Val' : 'Value'} *
+                              </Label>
                               <Input
                                 type="text"
                                 inputMode="decimal"
@@ -852,12 +882,14 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                                   }
                                 }}
                                 placeholder={row.flowMode === '%' ? "0.0" : "0.00"}
-                                className="h-8 text-xs"
+                                className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}
                               />
                             </div>
                             <div className="col-span-1 space-y-1">
-                              <Label className="text-xs text-muted-foreground">$ Amount</Label>
-                              <div className="h-8 px-2 flex items-center text-xs font-medium text-muted-foreground border rounded-md bg-muted/30">
+                              <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                                {isCompact ? 'Amt' : '$ Amount'}
+                              </Label>
+                              <div className={`${isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'} px-2 flex items-center font-medium text-muted-foreground border rounded-md bg-muted/30`}>
                                 {formatCurrency(row.amount || 0)}
                               </div>
                             </div>
@@ -867,7 +899,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                         {/* Amount (non-Flow) */}
                         {blockType !== 'Flow' && (
                           <div className="col-span-2 space-y-1">
-                            <Label className="text-xs text-muted-foreground">Amount *</Label>
+                            <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>Amount *</Label>
                             <Input
                               type="text"
                               inputMode="decimal"
@@ -878,7 +910,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                                   updateRow(row.id, { amount: parseFloat(rawValue) || 0 });
                                 }
                               }}
-                              className="h-8 text-xs"
+                              className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}
                             />
                           </div>
                         )}
@@ -886,7 +918,9 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                         {/* Flow Type (Flow only) */}
                         {blockType === 'Flow' && (
                           <div className="col-span-1 space-y-1">
-                            <Label className="text-xs text-muted-foreground">Type *</Label>
+                            <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                              {isCompact ? 'Typ' : 'Type'} *
+                            </Label>
                             <Select
                               value={row.type || ""}
                               onValueChange={(value) => {
@@ -900,7 +934,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                                 }
                               }}
                             >
-                              <SelectTrigger className="h-8 text-xs">
+                              <SelectTrigger className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}>
                                 <SelectValue placeholder="Type" />
                               </SelectTrigger>
                               <SelectContent>
@@ -918,8 +952,8 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
 
                         {/* Category */}
                         <div className="col-span-1 space-y-1">
-                          <Label className="text-xs text-muted-foreground">
-                            Category {blockType === 'Flow' ? '*' : ''}
+                          <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                            {isCompact ? 'Cat' : 'Category'}
                           </Label>
                           <Select
                             value={row.category || ""}
@@ -934,8 +968,8 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               }
                             }}
                           >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder={blockType === 'Flow' ? "Required" : "Optional"} />
+                            <SelectTrigger className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}>
+                              <SelectValue placeholder="Optional" />
                             </SelectTrigger>
                             <SelectContent>
                               {categories.map((cat) => (
@@ -951,30 +985,60 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
 
                         {/* Date */}
                         <div className="col-span-1 space-y-1">
-                          <Label className="text-xs text-muted-foreground">Date *</Label>
+                          <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                            {isCompact ? 'Dt' : 'Date'} *
+                          </Label>
                           <Input
                             type="date"
                             value={row.date ? format(row.date, 'yyyy-MM-dd') : ''}
                             onChange={(e) => updateRow(row.id, { date: new Date(e.target.value) })}
-                            className="h-8 text-xs"
+                            className={isCompact ? 'h-7 text-[11px]' : 'h-8 text-xs'}
                           />
                         </div>
 
-                        {/* Notes */}
-                        <div className="col-span-2 space-y-1">
-                          <Label className="text-xs text-muted-foreground">Notes</Label>
-                          <Input
-                            value={row.notes || ""}
-                            onChange={(e) => updateRow(row.id, { notes: e.target.value })}
-                            placeholder="Optional"
-                            className="h-8 text-xs"
-                          />
-                        </div>
+                        {/* Notes - Compact: icon popover, Standard: input */}
+                        {isCompact ? (
+                          <div className="col-span-1 space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Note</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 w-full p-0"
+                                >
+                                  <FileText className={`w-3 h-3 ${row.notes ? 'text-primary' : 'text-muted-foreground'}`} />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-64 p-2">
+                                <Label className="text-xs mb-1 block">Notes</Label>
+                                <textarea
+                                  value={row.notes || ""}
+                                  onChange={(e) => updateRow(row.id, { notes: e.target.value })}
+                                  placeholder="Optional notes..."
+                                  className="w-full min-h-[60px] p-2 text-xs border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        ) : (
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs text-muted-foreground">Notes</Label>
+                            <Input
+                              value={row.notes || ""}
+                              onChange={(e) => updateRow(row.id, { notes: e.target.value })}
+                              placeholder="Optional"
+                              className="h-8 text-xs"
+                            />
+                          </div>
+                        )}
 
                         {/* Execute & Delete */}
                         <div className="col-span-1 space-y-1">
-                          <Label className="text-xs text-muted-foreground">Execute</Label>
-                          <div className="flex items-center gap-1 h-8">
+                          <Label className={`${isCompact ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                            {isCompact ? 'Ex' : 'Execute'}
+                          </Label>
+                          <div className={`flex items-center gap-1 ${isCompact ? 'h-7' : 'h-8'}`}>
                             <Checkbox
                               checked={row.executed}
                               onCheckedChange={(checked) => updateRow(row.id, { executed: checked as boolean })}
@@ -984,9 +1048,9 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               variant="ghost"
                               onClick={() => deleteRow(row.id)}
                               disabled={rows.length === 1}
-                              className="h-6 w-6 p-0 ml-auto"
+                              className={`p-0 ml-auto ${isCompact ? 'h-5 w-5' : 'h-6 w-6'}`}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className={isCompact ? 'w-3 h-3' : 'w-4 h-4'} />
                             </Button>
                           </div>
                         </div>
