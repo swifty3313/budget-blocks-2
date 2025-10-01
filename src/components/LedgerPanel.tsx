@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
 import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Archive, ArchiveRestore, Plus, Calculator } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useState, useMemo, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
@@ -288,6 +289,7 @@ export function LedgerPanel({
   const [deleteConfirm, setDeleteConfirm] = useState<Block | null>(null);
   const [deleteConfirmStrong, setDeleteConfirmStrong] = useState<Block | null>(null);
   const [deleteInputText, setDeleteInputText] = useState("");
+  const [showNoBandDialog, setShowNoBandDialog] = useState(false);
 
   const toggleBand = (bandId: string) => {
     setExpandedBands((prev) => {
@@ -368,38 +370,47 @@ export function LedgerPanel({
     }
   };
 
-  if (bands.length === 0) {
-    return (
-      <div className="space-y-4">
-        <h2 className="text-2xl font-bold">Ledger</h2>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Calendar className="w-12 h-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-center">
-              No pay periods created yet. Set up your pay periods to start organizing blocks.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Check if there are ANY bands in the system (not just current month)
+  const hasBandsInSystem = bands.length > 0;
+  const hasActiveBands = bands.filter(b => !b.archived).length > 0;
+
+  const handleNewBlockWithGuard = () => {
+    if (!hasBandsInSystem) {
+      // Show interstitial when no bands exist
+      setShowNoBandDialog(true);
+    } else if (onNewBlock) {
+      onNewBlock();
+    }
+  };
 
   return (
     <div className="space-y-4">
+      {/* Ledger Header - Always Visible */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Ledger</h2>
         
         <div className="flex items-center gap-2">
-          {/* Calculator - context-aware for current view */}
-          <Button 
-            variant="ghost" 
-            size="icon"
-            title="Calculator"
-          >
-            <Calculator className="w-4 h-4" />
-          </Button>
+          {/* Calculator - disabled when no bands */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    disabled={!hasBandsInSystem}
+                  >
+                    <Calculator className="w-4 h-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{hasBandsInSystem ? "Calculator" : "Open from a pay period"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           
-          {/* Pay Periods */}
+          {/* Pay Periods - always enabled */}
           {onManagePeriods && (
             <Button variant="outline" size="sm" onClick={onManagePeriods}>
               <Settings className="w-4 h-4 mr-2" />
@@ -407,89 +418,161 @@ export function LedgerPanel({
             </Button>
           )}
           
-          {/* New Block */}
+          {/* New Block - always enabled but may show guard */}
           {onNewBlock && (
-            <Button size="sm" onClick={onNewBlock}>
+            <Button size="sm" onClick={handleNewBlockWithGuard}>
               <Plus className="w-4 h-4 mr-2" />
               New Block
             </Button>
           )}
           
-          {/* Show Archived Toggle */}
+          {/* Show Archived Toggle - disabled when no bands */}
           <div className="flex items-center gap-2 ml-2 pl-2 border-l">
             <Switch
               id="show-archived"
               checked={showArchived}
               onCheckedChange={setShowArchived}
+              disabled={!hasBandsInSystem}
             />
-            <Label htmlFor="show-archived" className="text-sm cursor-pointer">
+            <Label 
+              htmlFor="show-archived" 
+              className={`text-sm ${hasBandsInSystem ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}
+            >
               Show archived
             </Label>
           </div>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <LedgerFilterBar
-        filters={filters}
-        onFiltersChange={setFilters}
-        selectedMonth={selectedMonth}
-        onMonthChange={setSelectedMonth}
-      />
+      {/* Filter Bar - only show if bands exist */}
+      {hasBandsInSystem && (
+        <LedgerFilterBar
+          filters={filters}
+          onFiltersChange={setFilters}
+          selectedMonth={selectedMonth}
+          onMonthChange={setSelectedMonth}
+        />
+      )}
 
-      {/* Month Navigation */}
-      <Card>
-        <CardContent className="py-3">
-          <div className="flex items-center justify-between gap-4">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handlePrevMonth}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
+      {/* Month Navigation - only show if bands exist */}
+      {hasBandsInSystem && (
+        <Card>
+          <CardContent className="py-3">
+            <div className="flex items-center justify-between gap-4">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handlePrevMonth}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
 
-            <Select
-              value={format(selectedMonth, 'yyyy-MM')}
-              onValueChange={handleMonthSelect}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue>
-                  {format(selectedMonth, 'MMMM yyyy')}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {availableMonths.map((monthKey) => {
-                  const [year, month] = monthKey.split('-').map(Number);
-                  const date = new Date(year, month - 1, 1);
-                  return (
-                    <SelectItem key={monthKey} value={monthKey}>
-                      {format(date, 'MMMM yyyy')}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+              <Select
+                value={format(selectedMonth, 'yyyy-MM')}
+                onValueChange={handleMonthSelect}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue>
+                    {format(selectedMonth, 'MMMM yyyy')}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {availableMonths.map((monthKey) => {
+                    const [year, month] = monthKey.split('-').map(Number);
+                    const date = new Date(year, month - 1, 1);
+                    return (
+                      <SelectItem key={monthKey} value={monthKey}>
+                        {format(date, 'MMMM yyyy')}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
 
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleNextMonth}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleNextMonth}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="space-y-4">
-        {bandSummaries.length === 0 ? (
+        {!hasBandsInSystem ? (
+          // Empty state when no bands exist in system
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Calendar className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground text-center">
-                No bands for {format(selectedMonth, 'MMMM yyyy')}. Create in Manage Pay Periods.
-              </p>
+            <CardContent className="flex flex-col items-center justify-center py-16 space-y-6">
+              <Calendar className="w-16 h-16 text-muted-foreground" />
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-semibold">No pay periods yet</h3>
+                <p className="text-muted-foreground max-w-md">
+                  Create pay periods to start planning blocks and organizing your budget.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                {onManagePeriods && (
+                  <>
+                    <Button onClick={onManagePeriods} size="lg">
+                      <Plus className="w-4 h-4 mr-2" />
+                      Quick Generate
+                    </Button>
+                    <Button onClick={onManagePeriods} variant="outline" size="lg">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Open Manage Pay Periods
+                    </Button>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : bandSummaries.length === 0 ? (
+          // Empty state when bands exist but none in current view
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12 space-y-4">
+              <Calendar className="w-12 h-12 text-muted-foreground mb-2" />
+              {hasActiveFilters ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">Filtered view</Badge>
+                  </div>
+                  <p className="text-muted-foreground text-center">
+                    No bands match current filters
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setFilters({
+                      dateRange: {
+                        from: startOfMonth(new Date()),
+                        to: endOfMonth(new Date()),
+                        preset: 'This month',
+                      },
+                      owners: [],
+                      accounts: [],
+                      types: [],
+                      status: 'all' as const,
+                      search: '',
+                    })}
+                  >
+                    Reset filters
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-muted-foreground text-center">
+                    No bands for {format(selectedMonth, 'MMMM yyyy')}
+                  </p>
+                  {onManagePeriods && (
+                    <Button variant="outline" onClick={onManagePeriods}>
+                      <Calendar className="w-4 h-4 mr-2" />
+                      Create Pay Periods
+                    </Button>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -794,6 +877,44 @@ export function LedgerPanel({
         })
         )}
       </div>
+
+      {/* No Band Guard Dialog */}
+      <AlertDialog open={showNoBandDialog} onOpenChange={setShowNoBandDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>No pay periods available</AlertDialogTitle>
+            <AlertDialogDescription>
+              You need at least one pay period to insert a block. Create pay periods first to continue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            {onManagePeriods && (
+              <>
+                <AlertDialogAction
+                  onClick={() => {
+                    setShowNoBandDialog(false);
+                    onManagePeriods();
+                  }}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Quick Generate
+                </AlertDialogAction>
+                <Button
+                  onClick={() => {
+                    setShowNoBandDialog(false);
+                    onManagePeriods();
+                  }}
+                  variant="outline"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  Open Manage Pay Periods
+                </Button>
+              </>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ManageBlockDialog
         block={manageBlock}
