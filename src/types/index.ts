@@ -73,6 +73,7 @@ export interface PayPeriodBand {
   endDate: Date;
   order: number;
   archived?: boolean;
+  sourceScheduleId?: string; // Reference to the schedule that generated this band
 }
 
 export interface BandFrequencyConfig {
@@ -81,11 +82,22 @@ export interface BandFrequencyConfig {
   semiMonthlyDays?: [number, number];
 }
 
+export interface PaySchedule {
+  id: string;
+  name: string;
+  frequency: 'Monthly' | 'Semi-Monthly' | 'Bi-Weekly' | 'Weekly';
+  anchorDate?: Date; // For weekly/bi-weekly
+  semiMonthlyDay1?: number; // For semi-monthly (1-31 or 0 for last day)
+  semiMonthlyDay2?: number; // For semi-monthly (1-31 or 0 for last day)
+  createdAt: Date;
+}
+
 export interface AppState {
   bases: Base[];
   blocks: Block[];
   bands: PayPeriodBand[];
   library: Block[];
+  schedules: PaySchedule[];
   
   // Master lists
   owners: string[];
@@ -115,6 +127,11 @@ export interface AppState {
   deleteBand: (id: string) => void;
   archiveBand: (id: string) => void;
   unarchiveBand: (id: string) => void;
+  reassignBlocksToBands: () => number; // Returns count of reassigned blocks
+  
+  addSchedule: (schedule: Omit<PaySchedule, 'id' | 'createdAt'>) => void;
+  updateSchedule: (id: string, updates: Partial<PaySchedule>) => void;
+  deleteSchedule: (id: string) => void;
   
   saveToLibrary: (block: Block) => void;
   removeFromLibrary: (id: string) => void;

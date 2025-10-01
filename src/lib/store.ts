@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import type { AppState, Base, Block, PayPeriodBand, Row, KPIData, BandSummary } from '@/types';
+import type { AppState, Base, Block, PayPeriodBand, Row, KPIData, BandSummary, PaySchedule } from '@/types';
 
 // Helper to calculate block total
 const calculateBlockTotal = (rows: Row[]): number => {
@@ -21,6 +21,7 @@ export const useStore = create<AppState>()(
       blocks: [],
       bands: [],
       library: [],
+      schedules: [],
       owners: [],
       categories: [],
       vendors: [],
@@ -172,6 +173,45 @@ export const useStore = create<AppState>()(
       unarchiveBand: (id) => {
         set((state) => ({
           bands: state.bands.map((b) => (b.id === id ? { ...b, archived: false } : b)),
+        }));
+      },
+
+      reassignBlocksToBands: () => {
+        const { blocks, bands } = get();
+        let reassignedCount = 0;
+        
+        const updatedBlocks = blocks.map((block) => {
+          const newBandId = findBandForDate(block.date, bands);
+          if (newBandId !== block.bandId) {
+            reassignedCount++;
+            return { ...block, bandId: newBandId, updatedAt: new Date() };
+          }
+          return block;
+        });
+
+        set({ blocks: updatedBlocks });
+        return reassignedCount;
+      },
+
+      // Schedule actions
+      addSchedule: (schedule) => {
+        const newSchedule: PaySchedule = {
+          ...schedule,
+          id: uuidv4(),
+          createdAt: new Date(),
+        };
+        set((state) => ({ schedules: [...state.schedules, newSchedule] }));
+      },
+
+      updateSchedule: (id, updates) => {
+        set((state) => ({
+          schedules: state.schedules.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+        }));
+      },
+
+      deleteSchedule: (id) => {
+        set((state) => ({
+          schedules: state.schedules.filter((s) => s.id !== id),
         }));
       },
 
