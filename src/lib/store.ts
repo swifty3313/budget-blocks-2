@@ -288,6 +288,69 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'budget-blocks-storage',
+      storage: {
+        getItem: (name) => {
+          const str = localStorage.getItem(name);
+          if (!str) return null;
+          
+          const { state } = JSON.parse(str);
+          
+          // Convert date strings back to Date objects
+          return {
+            state: {
+              ...state,
+              bases: (state.bases || []).map((base: any) => ({
+                ...base,
+                createdAt: base.createdAt ? new Date(base.createdAt) : new Date(),
+                updatedAt: base.updatedAt ? new Date(base.updatedAt) : new Date(),
+              })),
+              blocks: (state.blocks || []).map((block: any) => ({
+                ...block,
+                date: block.date ? new Date(block.date) : new Date(),
+                rows: (block.rows || []).map((row: any) => ({
+                  ...row,
+                  date: row.date ? new Date(row.date) : new Date(),
+                })),
+                recurrence: block.recurrence ? {
+                  ...block.recurrence,
+                  startDate: new Date(block.recurrence.startDate),
+                  endDate: block.recurrence.endDate ? new Date(block.recurrence.endDate) : undefined,
+                  anchorDate: block.recurrence.anchorDate ? new Date(block.recurrence.anchorDate) : undefined,
+                } : undefined,
+                createdAt: block.createdAt ? new Date(block.createdAt) : new Date(),
+                updatedAt: block.updatedAt ? new Date(block.updatedAt) : new Date(),
+              })),
+              bands: (state.bands || []).map((band: any) => ({
+                ...band,
+                startDate: band.startDate ? new Date(band.startDate) : new Date(),
+                endDate: band.endDate ? new Date(band.endDate) : new Date(),
+              })),
+              library: (state.library || []).map((block: any) => ({
+                ...block,
+                date: block.date ? new Date(block.date) : new Date(),
+                rows: (block.rows || []).map((row: any) => ({
+                  ...row,
+                  date: row.date ? new Date(row.date) : new Date(),
+                })),
+                recurrence: block.recurrence ? {
+                  ...block.recurrence,
+                  startDate: new Date(block.recurrence.startDate),
+                  endDate: block.recurrence.endDate ? new Date(block.recurrence.endDate) : undefined,
+                  anchorDate: block.recurrence.anchorDate ? new Date(block.recurrence.anchorDate) : undefined,
+                } : undefined,
+                createdAt: block.createdAt ? new Date(block.createdAt) : new Date(),
+                updatedAt: block.updatedAt ? new Date(block.updatedAt) : new Date(),
+              })),
+            },
+          };
+        },
+        setItem: (name, value) => {
+          localStorage.setItem(name, JSON.stringify(value));
+        },
+        removeItem: (name) => {
+          localStorage.removeItem(name);
+        },
+      },
     }
   )
 );
