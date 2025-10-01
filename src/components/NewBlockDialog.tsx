@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, Calendar } from "lucide-react";
+import { Plus, Trash2, Calendar, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
@@ -41,6 +41,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
   const [title, setTitle] = useState("");
   const [selectedBandId, setSelectedBandId] = useState<string>(bandId || "");
   const [executeImmediately, setExecuteImmediately] = useState(false);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   
   const [rows, setRows] = useState<Row[]>([]);
 
@@ -197,6 +198,21 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
       ...(selectedBandId && !bandId ? { bandId: selectedBandId } : {}),
     };
 
+    // If editing a template, update it
+    if (editingTemplateId) {
+      saveToLibrary({ 
+        ...blockData, 
+        id: editingTemplateId,
+        isTemplate: true,
+        createdAt: library.find(t => t.id === editingTemplateId)?.createdAt || new Date(),
+        updatedAt: new Date() 
+      } as any);
+      toast.success("Template updated");
+      resetForm();
+      onOpenChange(false);
+      return;
+    }
+
     if (insert) {
       addBlock(blockData);
       toast.success("Block created");
@@ -224,6 +240,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
     setRows([]);
     setBlockType("Income");
     setActiveTab("new");
+    setEditingTemplateId(null);
   };
 
   const handleInsertTemplate = (template: any) => {
@@ -242,6 +259,14 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
     });
     toast.success(`${template.title} inserted`);
     onOpenChange(false);
+  };
+
+  const handleEditTemplate = (template: any) => {
+    setEditingTemplateId(template.id);
+    setBlockType(template.type);
+    setTitle(template.title);
+    setRows(template.rows.map((r: any) => ({ ...r, id: uuidv4() })));
+    setActiveTab("new");
   };
 
   const getBlockTypeColor = (type: string) => {
@@ -267,11 +292,13 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>New Block</DialogTitle>
+          <DialogTitle>{editingTemplateId ? "Edit Template" : "New Block"}</DialogTitle>
           <DialogDescription>
-            {bandInfo 
-              ? `Creating in ${bandInfo.title} (${format(bandInfo.startDate, 'MMM d')} - ${format(bandInfo.endDate, 'MMM d, yyyy')})`
-              : "Create a new income, fixed bill, or flow block"
+            {editingTemplateId 
+              ? "Update this template. Changes will affect future inserts only."
+              : bandInfo 
+                ? `Creating in ${bandInfo.title} (${format(bandInfo.startDate, 'MMM d')} - ${format(bandInfo.endDate, 'MMM d, yyyy')})`
+                : "Create a new income, fixed bill, or flow block"
             }
           </DialogDescription>
         </DialogHeader>
@@ -674,6 +701,14 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
                             size="sm"
                             variant="outline"
                             className="h-7 px-2"
+                            onClick={() => handleEditTemplate(template)}
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2"
                             onClick={() => {
                               if (confirm("Remove this template from library?")) {
                                 removeFromLibrary(template.id);
@@ -697,13 +732,21 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
           <Button variant="outline" onClick={() => { resetForm(); onOpenChange(false); }}>
             Cancel
           </Button>
-          <Button variant="outline" onClick={() => handleSave(true, false)}>
-            Save to Library
-          </Button>
-          <Button variant="outline" onClick={() => handleSave(true, true)}>
-            Save & Insert + Library
-          </Button>
-          <Button onClick={() => handleSave(false, true)}>Save & Insert</Button>
+          {editingTemplateId ? (
+            <Button onClick={() => handleSave(false, false)}>
+              Update Template
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => handleSave(true, false)}>
+                Save to Library
+              </Button>
+              <Button variant="outline" onClick={() => handleSave(true, true)}>
+                Save & Insert + Library
+              </Button>
+              <Button onClick={() => handleSave(false, true)}>Save & Insert</Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
