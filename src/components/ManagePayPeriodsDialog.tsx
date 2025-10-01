@@ -504,17 +504,51 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
     });
   };
 
+  const handleSelectAll = () => {
+    if (selectedBands.size === sortedBands.length) {
+      // Unselect all
+      setSelectedBands(new Set());
+    } else {
+      // Select all visible bands
+      setSelectedBands(new Set(sortedBands.map(b => b.id)));
+    }
+  };
+
+  // Calculate header checkbox state
+  const headerCheckboxState = useMemo(() => {
+    if (sortedBands.length === 0) return 'unchecked';
+    if (selectedBands.size === 0) return 'unchecked';
+    if (selectedBands.size === sortedBands.length) return 'checked';
+    return 'indeterminate';
+  }, [selectedBands, sortedBands]);
+
   const handleBulkDelete = () => {
-    // Check which selected bands have blocks
-    const bandsInfo = Array.from(selectedBands).map(bandId => {
-      const bandBlocks = blocks.filter(b => b.bandId === bandId);
-      const hasExecuted = bandBlocks.some(b => b.rows.some(r => r.executed));
-      return {
-        bandId,
-        blockCount: bandBlocks.length,
-        hasExecuted,
-      };
-    });
+    // Check which selected bands have blocks and which are locked
+    const lockedCount = Array.from(selectedBands).filter(bandId => {
+      const band = bands.find(b => b.id === bandId);
+      return band?.locked;
+    }).length;
+
+    if (lockedCount > 0 && lockedCount === selectedBands.size) {
+      toast.error("Cannot delete locked bands. Unlock them first.");
+      return;
+    }
+
+    // Check which selected bands have blocks (excluding locked)
+    const bandsInfo = Array.from(selectedBands)
+      .filter(bandId => {
+        const band = bands.find(b => b.id === bandId);
+        return !band?.locked;
+      })
+      .map(bandId => {
+        const bandBlocks = blocks.filter(b => b.bandId === bandId);
+        const hasExecuted = bandBlocks.some(b => b.rows.some(r => r.executed));
+        return {
+          bandId,
+          blockCount: bandBlocks.length,
+          hasExecuted,
+        };
+      });
 
     const bandsWithBlocksData = bandsInfo.filter(b => b.blockCount > 0);
     setBandsWithBlocks(bandsWithBlocksData);
@@ -535,8 +569,21 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
       return;
     }
 
-    // Process deletion
+    // Separate locked and unlocked bands
+    const lockedBands: string[] = [];
+    const unlockedBands: string[] = [];
+    
     Array.from(selectedBands).forEach(bandId => {
+      const band = bands.find(b => b.id === bandId);
+      if (band?.locked) {
+        lockedBands.push(bandId);
+      } else {
+        unlockedBands.push(bandId);
+      }
+    });
+
+    // Process deletion for unlocked bands only
+    unlockedBands.forEach(bandId => {
       const bandBlocks = blocks.filter(b => b.bandId === bandId);
       
       if (action === 'move') {
@@ -555,17 +602,24 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
       deleteBand(bandId);
     });
 
-    const deletedCount = selectedBands.size;
+    const deletedCount = unlockedBands.length;
+    const blockedCount = lockedBands.length;
     const movedCount = action === 'move' ? bandsWithBlocks.reduce((sum, b) => sum + b.blockCount, 0) : 0;
     const deletedBlockCount = action === 'delete' ? bandsWithBlocks.reduce((sum, b) => sum + b.blockCount, 0) : 0;
 
+    // Build success message
+    let message = `Deleted ${deletedCount} band(s).`;
     if (action === 'move' && movedCount > 0) {
-      toast.success(`Deleted ${deletedCount} band(s). ${movedCount} block(s) moved to Unassigned.`);
+      message = `Deleted ${deletedCount} band(s). ${movedCount} block(s) moved to Unassigned.`;
     } else if (action === 'delete' && deletedBlockCount > 0) {
-      toast.success(`Deleted ${deletedCount} band(s) and ${deletedBlockCount} block(s).`);
-    } else {
-      toast.success(`Deleted ${deletedCount} band(s).`);
+      message = `Deleted ${deletedCount} band(s) and ${deletedBlockCount} block(s).`;
     }
+    
+    if (blockedCount > 0) {
+      message += ` ${blockedCount} locked band(s) were not deleted.`;
+    }
+    
+    toast.success(message);
 
     // Reset state
     setSelectedBands(new Set());
@@ -698,10 +752,12 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
           <div className="flex items-center gap-2 border-b pb-3">
             {selectedBands.size > 0 ? (
               <>
-                <span className="text-sm font-medium">{selectedBands.size} selected</span>
+                <span className="text-sm font-medium">
+                  {selectedBands.size} selected (of {sortedBands.length})
+                </span>
                 <div className="flex-1" />
                 <Button variant="outline" size="sm" onClick={() => setSelectedBands(new Set())}>
-                  Cancel
+                  Cancel Selection
                 </Button>
                 <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
                   <Trash2 className="w-4 h-4 mr-2" />
@@ -868,7 +924,19 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[40px]"></TableHead>
+                            <TableHead className="w-[40px]">
+                              <Checkbox
+                                checked={
+                                  headerCheckboxState === 'checked' 
+                                    ? true 
+                                    : headerCheckboxState === 'indeterminate' 
+                                    ? 'indeterminate' 
+                                    : false
+                                }
+                                onCheckedChange={handleSelectAll}
+                                aria-label="Select all pay period bands (current view)"
+                              />
+                            </TableHead>
                             <TableHead>Title</TableHead>
                             <TableHead>Start Date</TableHead>
                             <TableHead>End Date</TableHead>
