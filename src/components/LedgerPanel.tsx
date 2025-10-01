@@ -3,11 +3,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
-import { ChevronDown, ChevronRight, Calendar, Settings, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Archive, ArchiveRestore } from "lucide-react";
 import { useState, useMemo } from "react";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths } from "date-fns";
 import { toast } from "sonner";
 import { ManageBlockDialog } from "@/components/ManageBlockDialog";
 import { CalculatorPopover } from "@/components/CalculatorPopover";
@@ -50,9 +53,50 @@ export function LedgerPanel({ onNewBlockInBand }: {
   const executeRow = useStore((state) => state.executeRow);
   const undoExecuteRow = useStore((state) => state.undoExecuteRow);
   const bases = useStore((state) => state.bases);
+  const archiveBand = useStore((state) => state.archiveBand);
+  const unarchiveBand = useStore((state) => state.unarchiveBand);
   
+  // Auto-archive settings - stored in localStorage
+  const [autoArchiveMonths] = useState(2);
+  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [showArchived, setShowArchived] = useState(false);
+  
+  // Auto-archive old bands
+  useMemo(() => {
+    const now = new Date();
+    bands.forEach((band) => {
+      const monthsOld = differenceInMonths(now, band.endDate);
+      if (monthsOld > autoArchiveMonths && !band.archived) {
+        archiveBand(band.id);
+      }
+    });
+  }, [bands, autoArchiveMonths, archiveBand]);
+
+  // Get unique months from bands
+  const availableMonths = useMemo(() => {
+    const monthSet = new Set<string>();
+    bands.forEach((band) => {
+      const monthKey = format(band.startDate, 'yyyy-MM');
+      monthSet.add(monthKey);
+    });
+    return Array.from(monthSet).sort().reverse();
+  }, [bands]);
+
   const bandSummaries = useMemo(() => {
+    const monthStart = startOfMonth(selectedMonth);
+    const monthEnd = endOfMonth(selectedMonth);
+    
     return bands
+      .filter((band) => {
+        // Filter by selected month (bands that overlap with the month)
+        const overlapsMonth = band.startDate <= monthEnd && band.endDate >= monthStart;
+        if (!overlapsMonth) return false;
+        
+        // Filter by archive status
+        if (band.archived && !showArchived) return false;
+        
+        return true;
+      })
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
       .map((band) => {
         const bandBlocks = blocks.filter((b) => b.bandId === band.id);
@@ -82,9 +126,10 @@ export function LedgerPanel({ onNewBlockInBand }: {
           availableToAllocate,
           blockCount: bandBlocks.length,
           executedCount,
+          archived: band.archived,
         };
       });
-  }, [bands, blocks]);
+  }, [bands, blocks, selectedMonth, showArchived]);
   
   const [expandedBands, setExpandedBands] = useState<Set<string>>(new Set());
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
@@ -149,7 +194,30 @@ export function LedgerPanel({ onNewBlockInBand }: {
     return base?.name || 'Unknown';
   };
 
-  if (bandSummaries.length === 0) {
+  const handlePrevMonth = () => {
+    setSelectedMonth((prev) => subMonths(prev, 1));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth((prev) => addMonths(prev, 1));
+  };
+
+  const handleMonthSelect = (monthKey: string) => {
+    const [year, month] = monthKey.split('-').map(Number);
+    setSelectedMonth(new Date(year, month - 1, 1));
+  };
+
+  const handleArchiveToggle = (bandId: string, isArchived?: boolean) => {
+    if (isArchived) {
+      unarchiveBand(bandId);
+      toast.success("Band unarchived");
+    } else {
+      archiveBand(bandId);
+      toast.success("Band archived");
+    }
+  };
+
+  if (bands.length === 0) {
     return (
       <div className="space-y-4">
         <h2 className="text-2xl font-bold">Ledger</h2>
@@ -167,10 +235,81 @@ export function LedgerPanel({ onNewBlockInBand }: {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-2xl font-bold">Ledger</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Ledger</h2>
+        
+        <div className="flex items-center gap-4">
+          {/* Show Archived Toggle */}
+          <div className="flex items-center gap-2">
+            <Switch
+              id="show-archived"
+              checked={showArchived}
+              onCheckedChange={setShowArchived}
+            />
+            <Label htmlFor="show-archived" className="text-sm cursor-pointer">
+              Show archived
+            </Label>
+          </div>
+        </div>
+      </div>
+
+      {/* Month Navigation */}
+      <Card>
+        <CardContent className="py-3">
+          <div className="flex items-center justify-between gap-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handlePrevMonth}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+
+            <Select
+              value={format(selectedMonth, 'yyyy-MM')}
+              onValueChange={handleMonthSelect}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue>
+                  {format(selectedMonth, 'MMMM yyyy')}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {availableMonths.map((monthKey) => {
+                  const [year, month] = monthKey.split('-').map(Number);
+                  const date = new Date(year, month - 1, 1);
+                  return (
+                    <SelectItem key={monthKey} value={monthKey}>
+                      {format(date, 'MMMM yyyy')}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleNextMonth}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="space-y-4">
-        {bandSummaries.map((summary) => {
+        {bandSummaries.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <Calendar className="w-12 h-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground text-center">
+                No bands for {format(selectedMonth, 'MMMM yyyy')}. Create in Manage Pay Periods.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          bandSummaries.map((summary) => {
           const isExpanded = expandedBands.has(summary.bandId);
           const bandBlocks = blocks.filter((b) => b.bandId === summary.bandId);
 
@@ -189,35 +328,62 @@ export function LedgerPanel({ onNewBlockInBand }: {
                     ) : (
                       <ChevronRight className="w-5 h-5 text-muted-foreground" />
                     )}
-                    <div>
-                      <CardTitle className="text-lg">{summary.title}</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {format(summary.startDate, 'MMM d')} - {format(summary.endDate, 'MMM d, yyyy')}
-                      </p>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-lg">{summary.title}</CardTitle>
+                          {summary.archived && (
+                            <Badge variant="outline" className="text-xs">
+                              Archived
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {format(summary.startDate, 'MMM d')} - {format(summary.endDate, 'MMM d, yyyy')}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 text-right">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Expected Income</p>
-                      <p className="text-sm font-semibold text-success">
-                        {formatCurrency(summary.expectedIncome)}
-                      </p>
+                  <div className="flex items-center gap-4">
+                    <div className="grid grid-cols-3 gap-4 text-right">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Expected Income</p>
+                        <p className="text-sm font-semibold text-success">
+                          {formatCurrency(summary.expectedIncome)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Expected Fixed</p>
+                        <p className="text-sm font-semibold text-warning">
+                          {formatCurrency(summary.expectedFixed)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Available</p>
+                        <p className={`text-sm font-semibold ${
+                          summary.availableToAllocate >= 0 ? 'text-kpi-positive' : 'text-kpi-negative'
+                        }`}>
+                          {formatCurrency(summary.availableToAllocate)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Expected Fixed</p>
-                      <p className="text-sm font-semibold text-warning">
-                        {formatCurrency(summary.expectedFixed)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Available</p>
-                      <p className={`text-sm font-semibold ${
-                        summary.availableToAllocate >= 0 ? 'text-kpi-positive' : 'text-kpi-negative'
-                      }`}>
-                        {formatCurrency(summary.availableToAllocate)}
-                      </p>
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleArchiveToggle(summary.bandId, summary.archived);
+                      }}
+                      title={summary.archived ? "Unarchive" : "Archive"}
+                    >
+                      {summary.archived ? (
+                        <ArchiveRestore className="w-4 h-4" />
+                      ) : (
+                        <Archive className="w-4 h-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
 
@@ -430,7 +596,8 @@ export function LedgerPanel({ onNewBlockInBand }: {
               )}
             </Card>
           );
-        })}
+        })
+        )}
       </div>
 
       <ManageBlockDialog

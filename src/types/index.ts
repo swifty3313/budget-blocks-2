@@ -71,6 +71,7 @@ export interface PayPeriodBand {
   startDate: Date;
   endDate: Date;
   order: number;
+  archived?: boolean;
 }
 
 export interface BandFrequencyConfig {
@@ -106,6 +107,8 @@ export interface AppState {
   addBand: (band: Omit<PayPeriodBand, 'id'>) => void;
   updateBand: (id: string, updates: Partial<PayPeriodBand>) => void;
   deleteBand: (id: string) => void;
+  archiveBand: (id: string) => void;
+  unarchiveBand: (id: string) => void;
   
   saveToLibrary: (block: Block) => void;
   removeFromLibrary: (id: string) => void;

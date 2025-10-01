@@ -149,6 +149,18 @@ export const useStore = create<AppState>()(
         }));
       },
 
+      archiveBand: (id) => {
+        set((state) => ({
+          bands: state.bands.map((b) => (b.id === id ? { ...b, archived: true } : b)),
+        }));
+      },
+
+      unarchiveBand: (id) => {
+        set((state) => ({
+          bands: state.bands.map((b) => (b.id === id ? { ...b, archived: false } : b)),
+        }));
+      },
+
       // Library actions
       saveToLibrary: (block) => {
         const template: Block = {
