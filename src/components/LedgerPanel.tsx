@@ -29,7 +29,7 @@ const calculateBlockTotal = (rows: any[]): number => {
   return rows.reduce((sum, row) => sum + row.amount, 0);
 };
 
-export function LedgerPanel() {
+export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: string, bandInfo: { title: string; startDate: Date; endDate: Date }) => void }) {
   const bands = useStore((state) => state.bands);
   const blocks = useStore((state) => state.blocks);
   const executeRow = useStore((state) => state.executeRow);
@@ -133,9 +133,11 @@ export function LedgerPanel() {
             <Card key={summary.bandId} className="overflow-hidden">
               <CardHeader
                 className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => toggleBand(summary.bandId)}
               >
-                <div className="flex items-start justify-between">
+                <div 
+                  className="flex items-start justify-between"
+                  onClick={() => toggleBand(summary.bandId)}
+                >
                   <div className="flex items-center gap-2 flex-1">
                     {isExpanded ? (
                       <ChevronDown className="w-5 h-5 text-muted-foreground" />
@@ -173,14 +175,51 @@ export function LedgerPanel() {
                     </div>
                   </div>
                 </div>
+
+                {onNewBlockInBand && (
+                  <div className="mt-3 pt-3 border-t">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNewBlockInBand(summary.bandId, {
+                          title: summary.title,
+                          startDate: summary.startDate,
+                          endDate: summary.endDate,
+                        });
+                      }}
+                      className="w-full"
+                    >
+                      <Calendar className="w-4 h-4 mr-2" />
+                      Add Block to this Period
+                    </Button>
+                  </div>
+                )}
               </CardHeader>
 
               {isExpanded && (
                 <CardContent className="pt-4 space-y-3">
                   {bandBlocks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No blocks in this period
-                    </p>
+                    <div className="text-center py-8">
+                      <p className="text-sm text-muted-foreground mb-3">
+                        No blocks in this period
+                      </p>
+                      {onNewBlockInBand && (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => onNewBlockInBand(summary.bandId, {
+                            title: summary.title,
+                            startDate: summary.startDate,
+                            endDate: summary.endDate,
+                          })}
+                        >
+                          <Calendar className="w-4 h-4 mr-2" />
+                          Create First Block
+                        </Button>
+                      )}
+                    </div>
                   ) : (
                     bandBlocks.map((block) => {
                       const isBlockExpanded = expandedBlocks.has(block.id);
@@ -212,7 +251,7 @@ export function LedgerPanel() {
                                     </Badge>
                                   </div>
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    {format(block.date, 'MMM d, yyyy')} • {block.owner}
+                                    {format(block.date, 'MMM d, yyyy')} • {[...new Set(block.rows.map(r => r.owner))].join(', ')}
                                   </p>
                                 </div>
                               </div>

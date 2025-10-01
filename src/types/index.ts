@@ -29,11 +29,11 @@ export interface Row {
   id: string;
   date: Date;
   owner: string;
-  source?: string;
+  source?: string; // Vendor/Source for Fixed Bills, Source for Income, Source/Description for Flow
   fromBaseId?: string;
   toBaseId?: string;
   amount: number;
-  type?: FlowRowType;
+  type?: FlowRowType; // For Flow blocks only (Transfer, Payment, Expense, Reimbursement)
   category?: string;
   notes?: string;
   executed: boolean;
@@ -52,13 +52,11 @@ export interface Block {
   id: string;
   type: BlockType;
   title: string;
-  date: Date;
-  owner: string;
-  source?: string;
+  date: Date; // Used for sorting/display; actual transaction dates are in rows
   tags: string[];
   rows: Row[];
-  bandId?: string;
-  recurrence?: RecurrenceRule;
+  bandId?: string; // Auto-assigned based on date or user selection
+  recurrence?: RecurrenceRule; // Only for templates in library
   isTemplate?: boolean;
   createdAt: Date;
   updatedAt: Date;

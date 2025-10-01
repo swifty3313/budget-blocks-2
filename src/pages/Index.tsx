@@ -11,6 +11,8 @@ import { useStore } from "@/lib/store";
 
 const Index = () => {
   const [newBlockOpen, setNewBlockOpen] = useState(false);
+  const [newBlockBandId, setNewBlockBandId] = useState<string | undefined>();
+  const [newBlockBandInfo, setNewBlockBandInfo] = useState<{ title: string; startDate: Date; endDate: Date } | undefined>();
   const [managePeriodsOpen, setManagePeriodsOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
 
@@ -24,10 +26,24 @@ const Index = () => {
     }
   }, []);
 
+  const handleNewBlock = (bandId?: string, bandInfo?: { title: string; startDate: Date; endDate: Date }) => {
+    setNewBlockBandId(bandId);
+    setNewBlockBandInfo(bandInfo);
+    setNewBlockOpen(true);
+  };
+
+  const handleNewBlockClose = (open: boolean) => {
+    setNewBlockOpen(open);
+    if (!open) {
+      setNewBlockBandId(undefined);
+      setNewBlockBandInfo(undefined);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <TopBar 
-        onNewBlock={() => setNewBlockOpen(true)}
+        onNewBlock={() => handleNewBlock()}
         onManagePeriods={() => setManagePeriodsOpen(true)}
       />
       
@@ -35,7 +51,7 @@ const Index = () => {
         <KPIPanel />
         <BaseBlocksPanel />
         <BlockLibraryPanel />
-        <LedgerPanel />
+        <LedgerPanel onNewBlockInBand={handleNewBlock} />
       </div>
 
       <WelcomeDialog 
@@ -48,7 +64,9 @@ const Index = () => {
       />
       <NewBlockDialog 
         open={newBlockOpen} 
-        onOpenChange={setNewBlockOpen} 
+        onOpenChange={handleNewBlockClose}
+        bandId={newBlockBandId}
+        bandInfo={newBlockBandInfo}
       />
     </div>
   );

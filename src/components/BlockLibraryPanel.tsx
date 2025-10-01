@@ -90,7 +90,7 @@ export function BlockLibraryPanel() {
                 </div>
 
                 <div className="text-xs text-muted-foreground">
-                  <p>Owner: {template.owner}</p>
+                  <p>Owners: {[...new Set(template.rows.map(r => r.owner))].join(', ')}</p>
                   <p>{template.rows.length} transaction(s)</p>
                   {template.recurrence && (
                     <p className="mt-1">
