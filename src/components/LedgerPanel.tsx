@@ -138,12 +138,16 @@ export function LedgerPanel({
     });
   }, [bands, autoArchiveMonths, archiveBand]);
 
-  // Get unique months from bands
+  // Get unique months from bands (use displayMonth if available)
   const availableMonths = useMemo(() => {
     const monthSet = new Set<string>();
     bands.forEach((band) => {
-      const monthKey = format(band.startDate, 'yyyy-MM');
-      monthSet.add(monthKey);
+      if (band.displayMonth) {
+        monthSet.add(band.displayMonth);
+      } else {
+        const monthKey = format(band.startDate, 'yyyy-MM');
+        monthSet.add(monthKey);
+      }
     });
     return Array.from(monthSet).sort().reverse();
   }, [bands]);
@@ -199,12 +203,18 @@ export function LedgerPanel({
   const bandSummaries = useMemo(() => {
     const monthStart = startOfMonth(selectedMonth);
     const monthEnd = endOfMonth(selectedMonth);
+    const selectedMonthKey = format(selectedMonth, 'yyyy-MM');
     
     return bands
       .filter((band) => {
-        // Filter by selected month (bands that overlap with the month)
-        const overlapsMonth = band.startDate <= monthEnd && band.endDate >= monthStart;
-        if (!overlapsMonth) return false;
+        // Use displayMonth if available, otherwise fall back to checking date overlap
+        if (band.displayMonth) {
+          if (band.displayMonth !== selectedMonthKey) return false;
+        } else {
+          // Fallback: filter by selected month (bands that overlap with the month)
+          const overlapsMonth = band.startDate <= monthEnd && band.endDate >= monthStart;
+          if (!overlapsMonth) return false;
+        }
         
         // Filter by archive status
         if (band.archived && !showArchived) return false;

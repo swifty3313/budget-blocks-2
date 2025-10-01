@@ -6,10 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { useStore } from "@/lib/store";
 import { Plus, Trash2, Calendar, RefreshCw, Edit2, Copy, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { format, addWeeks, addMonths, addDays, startOfMonth, endOfMonth, lastDayOfMonth, differenceInDays } from "date-fns";
+import { format, addWeeks, addMonths, addDays, startOfMonth, endOfMonth, lastDayOfMonth, setDate } from "date-fns";
 import type { PayPeriodBand, PaySchedule } from "@/types";
 
 interface ManagePayPeriodsDialogProps {
@@ -18,11 +20,35 @@ interface ManagePayPeriodsDialogProps {
 }
 
 type FrequencyType = 'Monthly' | 'Semi-Monthly' | 'Bi-Weekly' | 'Weekly';
+type AttributionRule = 'end-month' | 'start-month' | 'shift-plus-1';
 
 interface BandOverlap {
   band1: PayPeriodBand;
   band2: PayPeriodBand;
 }
+
+// Helper to calculate display month from a band based on attribution rule
+const calculateDisplayMonth = (band: PayPeriodBand, rule: AttributionRule = 'end-month'): string => {
+  let displayDate: Date;
+  
+  if (rule === 'start-month') {
+    displayDate = band.startDate;
+  } else if (rule === 'end-month') {
+    displayDate = band.endDate;
+  } else { // 'shift-plus-1'
+    displayDate = addMonths(band.endDate, 1);
+  }
+  
+  return format(displayDate, 'yyyy-MM');
+};
+
+// Helper to get day of month accounting for "Last"
+const getDayOfMonth = (year: number, month: number, day: number | 'Last'): Date => {
+  if (day === 'Last') {
+    return lastDayOfMonth(new Date(year, month, 1));
+  }
+  return setDate(new Date(year, month, 1), day);
+};
 
 export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsDialogProps) {
   const bands = useStore((state) => state.bands);
@@ -46,8 +72,11 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
   const [scheduleName, setScheduleName] = useState("");
   const [scheduleFrequency, setScheduleFrequency] = useState<FrequencyType>('Monthly');
   const [scheduleAnchorDate, setScheduleAnchorDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [scheduleSemiDay1, setScheduleSemiDay1] = useState(1);
-  const [scheduleSemiDay2, setScheduleSemiDay2] = useState(15);
+  const [scheduleAnchorDay, setScheduleAnchorDay] = useState<number | 'Last'>(15);
+  const [scheduleSemiDay1, setScheduleSemiDay1] = useState<number | 'Last'>(1);
+  const [scheduleSemiDay2, setScheduleSemiDay2] = useState<number | 'Last'>(15);
+  const [scheduleAttributionRule, setScheduleAttributionRule] = useState<AttributionRule>('end-month');
+  const [scheduleSemiSecondAsNextMonth, setScheduleSemiSecondAsNextMonth] = useState(false);
 
   // Overlap resolution
   const [showOverlapDialog, setShowOverlapDialog] = useState(false);
@@ -80,65 +109,93 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
   const handleGenerateFromSchedule = (schedule: PaySchedule, monthsCount: number = 6) => {
     const now = new Date();
     const periods: Omit<PayPeriodBand, 'id'>[] = [];
+    const rule = schedule.attributionRule || 'end-month';
 
     if (schedule.frequency === 'Monthly') {
+      const anchorDay = schedule.anchorDay || 1;
+      
       for (let i = -3; i < monthsCount - 3; i++) {
-        const date = addMonths(now, i);
-        const start = startOfMonth(date);
-        const end = endOfMonth(date);
+        const currentMonth = addMonths(now, i);
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
         
-        periods.push({
-          title: format(date, 'MMMM yyyy'),
+        // Band runs from anchor day to day before next anchor
+        const start = getDayOfMonth(year, month, anchorDay);
+        const nextMonth = addMonths(currentMonth, 1);
+        const nextMonthYear = nextMonth.getFullYear();
+        const nextMonthMonth = nextMonth.getMonth();
+        const nextAnchor = getDayOfMonth(nextMonthYear, nextMonthMonth, anchorDay);
+        const end = addDays(nextAnchor, -1);
+        
+        const band: Omit<PayPeriodBand, 'id'> = {
+          title: `${format(currentMonth, 'MMM yyyy')}`,
           startDate: start,
           endDate: end,
           order: i + 100,
           sourceScheduleId: schedule.id,
-        });
+          attributionRule: rule,
+        };
+        
+        band.displayMonth = calculateDisplayMonth(band as PayPeriodBand, rule);
+        periods.push(band);
       }
     } else if (schedule.frequency === 'Semi-Monthly') {
-      const day1 = schedule.semiMonthlyDay1 ?? 1;
-      const day2 = schedule.semiMonthlyDay2 ?? 15;
+      const day1 = schedule.semiMonthlyDay1 || 1;
+      const day2 = schedule.semiMonthlyDay2 || 15;
+      const secondAsNext = schedule.semiSecondAsNextMonth || false;
       
       for (let monthOffset = -3; monthOffset < monthsCount - 3; monthOffset++) {
         const currentMonth = addMonths(now, monthOffset);
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
         
-        // First period
-        let firstStart = new Date(year, month, day1);
+        // First period: day1 to (day2 - 1)
+        const firstStart = getDayOfMonth(year, month, day1);
         let firstEnd: Date;
         
-        if (day2 === 0) {
-          const lastDay = lastDayOfMonth(currentMonth);
-          firstEnd = addDays(lastDay, -1);
+        if (day2 === 'Last') {
+          firstEnd = addDays(lastDayOfMonth(currentMonth), -1);
         } else {
-          firstEnd = new Date(year, month, day2 - 1);
+          firstEnd = addDays(getDayOfMonth(year, month, day2), -1);
         }
         
-        periods.push({
+        const band1: Omit<PayPeriodBand, 'id'> = {
           title: `${format(currentMonth, 'MMM yyyy')} (1st half)`,
           startDate: firstStart,
           endDate: firstEnd,
           order: monthOffset * 2 + 100,
           sourceScheduleId: schedule.id,
-        });
+          attributionRule: rule,
+        };
+        band1.displayMonth = calculateDisplayMonth(band1 as PayPeriodBand, rule);
+        periods.push(band1);
         
-        // Second period
-        let secondStart: Date;
-        if (day2 === 0) {
-          secondStart = lastDayOfMonth(currentMonth);
-        } else {
-          secondStart = new Date(year, month, day2);
+        // Second period: day2 to end of month (or to day1-1 of next month if crossing boundary)
+        const secondStart = getDayOfMonth(year, month, day2);
+        const nextMonth = addMonths(currentMonth, 1);
+        const nextYear = nextMonth.getFullYear();
+        const nextMonthNum = nextMonth.getMonth();
+        const nextDay1 = getDayOfMonth(nextYear, nextMonthNum, day1);
+        const secondEnd = addDays(nextDay1, -1);
+        
+        let effectiveRule = rule;
+        // If "second as next month" is enabled, override to shift+1 or adjust
+        if (secondAsNext) {
+          effectiveRule = 'shift-plus-1';
         }
-        const secondEnd = lastDayOfMonth(currentMonth);
         
-        periods.push({
-          title: `${format(currentMonth, 'MMM yyyy')} (2nd half)`,
+        const band2: Omit<PayPeriodBand, 'id'> = {
+          title: secondAsNext 
+            ? `${format(nextMonth, 'MMM yyyy')} (PP1)` 
+            : `${format(currentMonth, 'MMM yyyy')} (2nd half)`,
           startDate: secondStart,
           endDate: secondEnd,
           order: monthOffset * 2 + 101,
           sourceScheduleId: schedule.id,
-        });
+          attributionRule: effectiveRule,
+        };
+        band2.displayMonth = calculateDisplayMonth(band2 as PayPeriodBand, effectiveRule);
+        periods.push(band2);
       }
     } else if (schedule.frequency === 'Bi-Weekly') {
       const anchor = schedule.anchorDate ? new Date(schedule.anchorDate) : new Date();
@@ -146,13 +203,16 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
         const start = addWeeks(anchor, i * 2);
         const end = addDays(addWeeks(start, 2), -1);
         
-        periods.push({
+        const band: Omit<PayPeriodBand, 'id'> = {
           title: `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`,
           startDate: start,
           endDate: end,
           order: i + 100,
           sourceScheduleId: schedule.id,
-        });
+          attributionRule: rule,
+        };
+        band.displayMonth = calculateDisplayMonth(band as PayPeriodBand, rule);
+        periods.push(band);
       }
     } else if (schedule.frequency === 'Weekly') {
       const anchor = schedule.anchorDate ? new Date(schedule.anchorDate) : new Date();
@@ -160,13 +220,16 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
         const start = addWeeks(anchor, i);
         const end = addDays(start, 6);
         
-        periods.push({
+        const band: Omit<PayPeriodBand, 'id'> = {
           title: `Week of ${format(start, 'MMM d, yyyy')}`,
           startDate: start,
           endDate: end,
           order: i + 100,
           sourceScheduleId: schedule.id,
-        });
+          attributionRule: rule,
+        };
+        band.displayMonth = calculateDisplayMonth(band as PayPeriodBand, rule);
+        periods.push(band);
       }
     }
 
@@ -199,8 +262,11 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
       anchorDate: scheduleFrequency === 'Weekly' || scheduleFrequency === 'Bi-Weekly' 
         ? new Date(scheduleAnchorDate) 
         : undefined,
+      anchorDay: scheduleFrequency === 'Monthly' ? scheduleAnchorDay : undefined,
       semiMonthlyDay1: scheduleFrequency === 'Semi-Monthly' ? scheduleSemiDay1 : undefined,
       semiMonthlyDay2: scheduleFrequency === 'Semi-Monthly' ? scheduleSemiDay2 : undefined,
+      attributionRule: scheduleAttributionRule,
+      semiSecondAsNextMonth: scheduleFrequency === 'Semi-Monthly' ? scheduleSemiSecondAsNextMonth : undefined,
     };
 
     if (editingScheduleId) {
@@ -220,8 +286,11 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
     setScheduleName("");
     setScheduleFrequency('Monthly');
     setScheduleAnchorDate(format(new Date(), 'yyyy-MM-dd'));
+    setScheduleAnchorDay(15);
     setScheduleSemiDay1(1);
     setScheduleSemiDay2(15);
+    setScheduleAttributionRule('end-month');
+    setScheduleSemiSecondAsNextMonth(false);
   };
 
   const handleEditSchedule = (schedule: PaySchedule) => {
@@ -231,11 +300,20 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
     if (schedule.anchorDate) {
       setScheduleAnchorDate(format(schedule.anchorDate, 'yyyy-MM-dd'));
     }
+    if (schedule.anchorDay !== undefined) {
+      setScheduleAnchorDay(schedule.anchorDay);
+    }
     if (schedule.semiMonthlyDay1 !== undefined) {
       setScheduleSemiDay1(schedule.semiMonthlyDay1);
     }
     if (schedule.semiMonthlyDay2 !== undefined) {
       setScheduleSemiDay2(schedule.semiMonthlyDay2);
+    }
+    if (schedule.attributionRule) {
+      setScheduleAttributionRule(schedule.attributionRule);
+    }
+    if (schedule.semiSecondAsNextMonth !== undefined) {
+      setScheduleSemiSecondAsNextMonth(schedule.semiSecondAsNextMonth);
     }
     setShowScheduleDialog(true);
   };
@@ -245,8 +323,11 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
       name: `${schedule.name} (Copy)`,
       frequency: schedule.frequency,
       anchorDate: schedule.anchorDate,
+      anchorDay: schedule.anchorDay,
       semiMonthlyDay1: schedule.semiMonthlyDay1,
       semiMonthlyDay2: schedule.semiMonthlyDay2,
+      attributionRule: schedule.attributionRule,
+      semiSecondAsNextMonth: schedule.semiSecondAsNextMonth,
     });
     toast.success("Schedule duplicated");
   };
@@ -274,14 +355,30 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
       return;
     }
 
-    updateBand(editingBandId, {
+    const currentBand = bands.find(b => b.id === editingBandId);
+    const rule = currentBand?.attributionRule || 'end-month';
+    
+    const updatedBand: Partial<PayPeriodBand> = {
       title: editingTitle.trim(),
       startDate: start,
       endDate: end,
-    });
+    };
+    
+    // Recalculate display month
+    updatedBand.displayMonth = calculateDisplayMonth(
+      { ...currentBand!, ...updatedBand } as PayPeriodBand,
+      rule
+    );
+
+    updateBand(editingBandId, updatedBand);
 
     setEditingBandId(null);
     toast.success("Band updated");
+
+    // Check if display month changed
+    if (currentBand && currentBand.displayMonth !== updatedBand.displayMonth) {
+      toast.info(`Band moved to ${format(new Date(updatedBand.displayMonth + '-01'), 'MMMM yyyy')} per attribution rule`);
+    }
 
     // Reassign blocks
     const count = reassignBlocksToBands();
@@ -291,10 +388,11 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
   };
 
   const handleMonthlyRenumber = () => {
+    // Group by displayMonth (use displayMonth if available, otherwise calculate from endDate)
     const byMonth = new Map<string, PayPeriodBand[]>();
 
     sortedBands.forEach((band) => {
-      const monthKey = format(band.startDate, 'yyyy-MM');
+      const monthKey = band.displayMonth || format(band.endDate, 'yyyy-MM');
       if (!byMonth.has(monthKey)) {
         byMonth.set(monthKey, []);
       }
@@ -313,7 +411,7 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
       });
     });
 
-    toast.success(`Renumbered ${updatedCount} band(s)`);
+    toast.success(`Renumbered ${updatedCount} band(s) per display month`);
   };
 
   const handleResolveOverlap = (overlap: BandOverlap, action: 'adjust-earlier' | 'adjust-later' | 'keep') => {
@@ -321,15 +419,27 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
 
     if (action === 'adjust-earlier') {
       // Adjust band1 end to be day before band2 start
-      updateBand(band1.id, {
+      const updates: Partial<PayPeriodBand> = {
         endDate: addDays(band2.startDate, -1),
-      });
+      };
+      // Recalculate display month
+      updates.displayMonth = calculateDisplayMonth(
+        { ...band1, ...updates } as PayPeriodBand,
+        band1.attributionRule || 'end-month'
+      );
+      updateBand(band1.id, updates);
       toast.success("Earlier band adjusted");
     } else if (action === 'adjust-later') {
       // Adjust band2 start to be day after band1 end
-      updateBand(band2.id, {
+      const updates: Partial<PayPeriodBand> = {
         startDate: addDays(band1.endDate, 1),
-      });
+      };
+      // Recalculate display month
+      updates.displayMonth = calculateDisplayMonth(
+        { ...band2, ...updates } as PayPeriodBand,
+        band2.attributionRule || 'end-month'
+      );
+      updateBand(band2.id, updates);
       toast.success("Later band adjusted");
     }
     // 'keep' does nothing
@@ -396,6 +506,11 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                         <div className="flex-1 min-w-0">
                           <p className="font-medium text-sm truncate">{schedule.name}</p>
                           <p className="text-xs text-muted-foreground">{schedule.frequency}</p>
+                          {schedule.attributionRule && (
+                            <p className="text-xs text-muted-foreground capitalize">
+                              {schedule.attributionRule.replace('-', ' ')}
+                            </p>
+                          )}
                         </div>
                         <div className="flex gap-1">
                           <Button size="sm" variant="ghost" onClick={() => handleEditSchedule(schedule)}>
@@ -446,6 +561,7 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                         <TableHead>Title</TableHead>
                         <TableHead>Start Date</TableHead>
                         <TableHead>End Date</TableHead>
+                        <TableHead>Display Month</TableHead>
                         <TableHead>Source</TableHead>
                         <TableHead className="w-[100px]">Actions</TableHead>
                       </TableRow>
@@ -487,6 +603,12 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                             ) : (
                               format(band.endDate, 'MMM d, yyyy')
                             )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {band.displayMonth 
+                              ? format(new Date(band.displayMonth + '-01'), 'MMM yyyy')
+                              : format(band.endDate, 'MMM yyyy')
+                            }
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {band.sourceScheduleId 
@@ -533,7 +655,7 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
 
       {/* Schedule Dialog */}
       <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingScheduleId ? 'Edit Schedule' : 'New Schedule'}</DialogTitle>
             <DialogDescription>
@@ -567,46 +689,92 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
               </Select>
             </div>
 
-            {scheduleFrequency === 'Semi-Monthly' && (
+            {scheduleFrequency === 'Monthly' && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="semiDay1">First Payment Day</Label>
-                  <Select value={scheduleSemiDay1.toString()} onValueChange={(v) => setScheduleSemiDay1(parseInt(v))}>
-                    <SelectTrigger id="semiDay1">
+                  <Label htmlFor="anchorDay">Anchor Day *</Label>
+                  <p className="text-xs text-muted-foreground">Band runs from anchor day to day before next anchor</p>
+                  <Select 
+                    value={scheduleAnchorDay === 'Last' ? 'Last' : scheduleAnchorDay.toString()} 
+                    onValueChange={(v) => setScheduleAnchorDay(v === 'Last' ? 'Last' : parseInt(v))}
+                  >
+                    <SelectTrigger id="anchorDay">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
                         <SelectItem key={day} value={day.toString()}>
-                          {day === 1 ? '1st' : day === 2 ? '2nd' : day === 3 ? '3rd' : `${day}th`}
+                          {day === 1 ? '1st' : day === 2 ? '2nd' : day === 3 ? '3rd' : day === 21 ? '21st' : day === 22 ? '22nd' : day === 23 ? '23rd' : day === 31 ? '31st' : `${day}th`}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="semiDay2">Second Payment Day</Label>
-                  <Select value={scheduleSemiDay2.toString()} onValueChange={(v) => setScheduleSemiDay2(parseInt(v))}>
-                    <SelectTrigger id="semiDay2">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
-                        <SelectItem key={day} value={day.toString()}>
-                          {day === 1 ? '1st' : day === 2 ? '2nd' : day === 3 ? '3rd' : `${day}th`}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="0">Last day of month</SelectItem>
+                      <SelectItem value="Last">Last Day</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </>
             )}
 
+            {scheduleFrequency === 'Semi-Monthly' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="semiDay1">First Anchor Day *</Label>
+                  <Select 
+                    value={scheduleSemiDay1 === 'Last' ? 'Last' : scheduleSemiDay1.toString()} 
+                    onValueChange={(v) => setScheduleSemiDay1(v === 'Last' ? 'Last' : parseInt(v))}
+                  >
+                    <SelectTrigger id="semiDay1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <SelectItem key={day} value={day.toString()}>
+                          {day === 1 ? '1st' : day === 2 ? '2nd' : day === 3 ? '3rd' : day === 21 ? '21st' : day === 22 ? '22nd' : day === 23 ? '23rd' : day === 31 ? '31st' : `${day}th`}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="Last">Last Day</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="semiDay2">Second Anchor Day *</Label>
+                  <Select 
+                    value={scheduleSemiDay2 === 'Last' ? 'Last' : scheduleSemiDay2.toString()} 
+                    onValueChange={(v) => setScheduleSemiDay2(v === 'Last' ? 'Last' : parseInt(v))}
+                  >
+                    <SelectTrigger id="semiDay2">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                        <SelectItem key={day} value={day.toString()}>
+                          {day === 1 ? '1st' : day === 2 ? '2nd' : day === 3 ? '3rd' : day === 21 ? '21st' : day === 22 ? '22nd' : day === 23 ? '23rd' : day === 31 ? '31st' : `${day}th`}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="Last">Last Day</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center space-x-2 pt-2">
+                  <Switch 
+                    id="semiSecondAsNext"
+                    checked={scheduleSemiSecondAsNextMonth}
+                    onCheckedChange={setScheduleSemiSecondAsNextMonth}
+                  />
+                  <Label htmlFor="semiSecondAsNext" className="text-sm cursor-pointer">
+                    Treat second anchor as next month's PP1
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, the second period (e.g., last day → 14th) will appear under the following month
+                </p>
+              </>
+            )}
+
             {(scheduleFrequency === 'Weekly' || scheduleFrequency === 'Bi-Weekly') && (
               <div className="space-y-2">
-                <Label htmlFor="scheduleAnchor">Anchor Date (First Payday)</Label>
+                <Label htmlFor="scheduleAnchor">Anchor Date (First Payday) *</Label>
                 <Input
                   id="scheduleAnchor"
                   type="date"
@@ -615,6 +783,33 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                 />
               </div>
             )}
+
+            <div className="space-y-2 pt-2 border-t">
+              <Label>Attribution Rule</Label>
+              <p className="text-xs text-muted-foreground">
+                Determines which month the band appears under in the Ledger
+              </p>
+              <RadioGroup value={scheduleAttributionRule} onValueChange={(v) => setScheduleAttributionRule(v as AttributionRule)}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="end-month" id="attr-end" />
+                  <Label htmlFor="attr-end" className="font-normal cursor-pointer">
+                    End-month (band shows under month containing end date)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="start-month" id="attr-start" />
+                  <Label htmlFor="attr-start" className="font-normal cursor-pointer">
+                    Start-month (band shows under month containing start date)
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="shift-plus-1" id="attr-shift" />
+                  <Label htmlFor="attr-shift" className="font-normal cursor-pointer">
+                    Shift +1 month (band shows under month after end date)
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
           </div>
 
           <DialogFooter>

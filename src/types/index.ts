@@ -74,6 +74,8 @@ export interface PayPeriodBand {
   order: number;
   archived?: boolean;
   sourceScheduleId?: string; // Reference to the schedule that generated this band
+  attributionRule?: 'end-month' | 'start-month' | 'shift-plus-1';
+  displayMonth?: string; // YYYY-MM format for ledger paging (calculated from attribution rule)
 }
 
 export interface BandFrequencyConfig {
@@ -86,9 +88,12 @@ export interface PaySchedule {
   id: string;
   name: string;
   frequency: 'Monthly' | 'Semi-Monthly' | 'Bi-Weekly' | 'Weekly';
-  anchorDate?: Date; // For weekly/bi-weekly
-  semiMonthlyDay1?: number; // For semi-monthly (1-31 or 0 for last day)
-  semiMonthlyDay2?: number; // For semi-monthly (1-31 or 0 for last day)
+  anchorDate?: Date; // For Bi-Weekly and Weekly
+  anchorDay?: number | 'Last'; // For Monthly (1-31 or "Last")
+  semiMonthlyDay1?: number | 'Last'; // For Semi-Monthly (1-31 or "Last")
+  semiMonthlyDay2?: number | 'Last'; // For Semi-Monthly (1-31 or "Last")
+  attributionRule?: 'end-month' | 'start-month' | 'shift-plus-1'; // How to assign bands to display months
+  semiSecondAsNextMonth?: boolean; // For Semi-Monthly: treat second anchor as next month's PP1
   createdAt: Date;
 }
 
