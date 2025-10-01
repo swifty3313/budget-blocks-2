@@ -99,12 +99,28 @@ export interface PaySchedule {
   createdAt: Date;
 }
 
+export interface FixedBill {
+  id: string;
+  owner: string;
+  vendor: string;
+  fromBaseId: string;
+  defaultAmount: number;
+  category?: string;
+  dueDay: number | 'Last'; // 1-31 or "Last Day"
+  autopay: boolean;
+  notes?: string;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface AppState {
   bases: Base[];
   blocks: Block[];
   bands: PayPeriodBand[];
   library: Block[];
   schedules: PaySchedule[];
+  fixedBills: FixedBill[];
   
   // Master lists
   owners: string[];
@@ -139,6 +155,10 @@ export interface AppState {
   addSchedule: (schedule: Omit<PaySchedule, 'id' | 'createdAt'>) => void;
   updateSchedule: (id: string, updates: Partial<PaySchedule>) => void;
   deleteSchedule: (id: string) => void;
+  
+  addFixedBill: (bill: Omit<FixedBill, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateFixedBill: (id: string, updates: Partial<FixedBill>) => void;
+  deleteFixedBill: (id: string) => void;
   
   saveToLibrary: (block: Block) => void;
   removeFromLibrary: (id: string) => void;

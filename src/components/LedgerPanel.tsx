@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
-import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Plus, Receipt } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
@@ -16,7 +16,10 @@ import { ManageBlockDialog } from "@/components/ManageBlockDialog";
 import { CalculatorPopover } from "@/components/CalculatorPopover";
 import { LedgerFilterBar, type LedgerFilters } from "@/components/LedgerFilterBar";
 import { BandSettingsDialog } from "@/components/BandSettingsDialog";
-import type { Block } from "@/types";
+import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
+import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
+import type { Block, PayPeriodBand, Row } from "@/types";
+import { v4 as uuidv4 } from "uuid";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -61,10 +64,13 @@ export function LedgerPanel({
   const executeRow = useStore((state) => state.executeRow);
   const undoExecuteRow = useStore((state) => state.undoExecuteRow);
   const bases = useStore((state) => state.bases);
+  const addBlock = useStore((state) => state.addBlock);
   
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showArchived, setShowArchived] = useState(false);
   const [bandSettingsId, setBandSettingsId] = useState<string | null>(null);
+  const [pickBillsBand, setPickBillsBand] = useState<PayPeriodBand | null>(null);
+  const [showManageBills, setShowManageBills] = useState(false);
   
   // Filter state - persisted to localStorage
   const [filters, setFilters] = useState<LedgerFilters>(() => {
@@ -340,6 +346,23 @@ export function LedgerPanel({
   const handleMonthSelect = (monthKey: string) => {
     const [year, month] = monthKey.split('-').map(Number);
     setSelectedMonth(new Date(year, month - 1, 1));
+  };
+
+  const handleInsertFixedBills = (rows: Row[]) => {
+    if (!pickBillsBand) return;
+    
+    // Create a new Fixed Bill block with the inserted rows
+    const newBlock = {
+      type: 'Fixed Bill' as const,
+      title: `Bills - ${pickBillsBand.title}`,
+      date: pickBillsBand.startDate,
+      tags: [],
+      rows: rows,
+      bandId: pickBillsBand.id,
+    };
+    
+    addBlock(newBlock);
+    setPickBillsBand(null);
   };
 
   // Check if there are ANY bands in the system (not just current month)
@@ -619,6 +642,19 @@ export function LedgerPanel({
                       >
                         <Calendar className="w-4 h-4 mr-2" />
                         Add Block
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const band = bands.find(b => b.id === summary.bandId);
+                          if (band) setPickBillsBand(band);
+                        }}
+                        className="flex-1"
+                      >
+                        <Receipt className="w-4 h-4 mr-2" />
+                        Insert Bills
                       </Button>
                       <div onClick={(e) => e.stopPropagation()}>
                         <CalculatorPopover
@@ -943,6 +979,25 @@ export function LedgerPanel({
         bandId={bandSettingsId}
         open={bandSettingsId !== null}
         onOpenChange={(open) => !open && setBandSettingsId(null)}
+      />
+
+      {/* Pick Fixed Bills Dialog */}
+      <PickFixedBillsDialog
+        open={!!pickBillsBand}
+        onOpenChange={(open) => {
+          if (!open) setPickBillsBand(null);
+        }}
+        band={pickBillsBand}
+        onInsert={handleInsertFixedBills}
+        onManageLibrary={() => {
+          setShowManageBills(true);
+        }}
+      />
+
+      {/* Manage Fixed Bills Dialog */}
+      <ManageFixedBillsDialog
+        open={showManageBills}
+        onOpenChange={setShowManageBills}
       />
     </div>
   );

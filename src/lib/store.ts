@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import type { AppState, Base, Block, PayPeriodBand, Row, KPIData, BandSummary, PaySchedule } from '@/types';
+import type { AppState, Base, Block, PayPeriodBand, Row, KPIData, BandSummary, PaySchedule, FixedBill } from '@/types';
 
 // Helper to calculate block total
 const calculateBlockTotal = (rows: Row[]): number => {
@@ -22,6 +22,7 @@ export const useStore = create<AppState>()(
       bands: [],
       library: [],
       schedules: [],
+      fixedBills: [],
       owners: [],
       categories: [],
       vendors: [],
@@ -215,6 +216,31 @@ export const useStore = create<AppState>()(
         }));
       },
 
+      // Fixed Bill actions
+      addFixedBill: (bill) => {
+        const newBill: FixedBill = {
+          ...bill,
+          id: uuidv4(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        set((state) => ({ fixedBills: [...state.fixedBills, newBill] }));
+      },
+
+      updateFixedBill: (id, updates) => {
+        set((state) => ({
+          fixedBills: state.fixedBills.map((b) =>
+            b.id === id ? { ...b, ...updates, updatedAt: new Date() } : b
+          ),
+        }));
+      },
+
+      deleteFixedBill: (id) => {
+        set((state) => ({
+          fixedBills: state.fixedBills.filter((b) => b.id !== id),
+        }));
+      },
+
       // Library actions
       saveToLibrary: (block) => {
         const template: Block = {
@@ -339,6 +365,8 @@ export const useStore = create<AppState>()(
           blocks: state.blocks,
           bands: state.bands,
           library: state.library,
+          schedules: state.schedules,
+          fixedBills: state.fixedBills,
           owners: state.owners,
           categories: state.categories,
           vendors: state.vendors,
@@ -356,6 +384,8 @@ export const useStore = create<AppState>()(
             blocks: data.blocks || [],
             bands: data.bands || [],
             library: data.library || [],
+            schedules: data.schedules || [],
+            fixedBills: data.fixedBills || [],
             owners: data.owners || [],
             categories: data.categories || [],
             vendors: data.vendors || [],
@@ -374,6 +404,8 @@ export const useStore = create<AppState>()(
           blocks: [],
           bands: [],
           library: [],
+          schedules: [],
+          fixedBills: [],
           owners: [],
           categories: [],
           vendors: [],
@@ -437,6 +469,16 @@ export const useStore = create<AppState>()(
                 } : undefined,
                 createdAt: block.createdAt ? new Date(block.createdAt) : new Date(),
                 updatedAt: block.updatedAt ? new Date(block.updatedAt) : new Date(),
+              })),
+              schedules: (state.schedules || []).map((schedule: any) => ({
+                ...schedule,
+                anchorDate: schedule.anchorDate ? new Date(schedule.anchorDate) : undefined,
+                createdAt: schedule.createdAt ? new Date(schedule.createdAt) : new Date(),
+              })),
+              fixedBills: (state.fixedBills || []).map((bill: any) => ({
+                ...bill,
+                createdAt: bill.createdAt ? new Date(bill.createdAt) : new Date(),
+                updatedAt: bill.updatedAt ? new Date(bill.updatedAt) : new Date(),
               })),
             },
           };
