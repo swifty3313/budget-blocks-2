@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
 import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Archive, ArchiveRestore } from "lucide-react";
-import { useState, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths } from "date-fns";
+import { useState, useMemo, useEffect } from "react";
+import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
 import { ManageBlockDialog } from "@/components/ManageBlockDialog";
 import { CalculatorPopover } from "@/components/CalculatorPopover";
+import { LedgerFilterBar, type LedgerFilters } from "@/components/LedgerFilterBar";
 import type { Block } from "@/types";
 
 const formatCurrency = (amount: number) => {
@@ -61,6 +62,65 @@ export function LedgerPanel({ onNewBlockInBand }: {
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showArchived, setShowArchived] = useState(false);
   
+  // Filter state - persisted to localStorage
+  const [filters, setFilters] = useState<LedgerFilters>(() => {
+    const stored = localStorage.getItem('ledger-filters');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        return {
+          ...parsed,
+          dateRange: {
+            ...parsed.dateRange,
+            from: new Date(parsed.dateRange.from),
+            to: new Date(parsed.dateRange.to),
+          },
+        };
+      } catch {
+        // Fall through to default
+      }
+    }
+    const now = new Date();
+    return {
+      dateRange: {
+        from: startOfMonth(now),
+        to: endOfMonth(now),
+        preset: 'This month',
+      },
+      owners: [],
+      accounts: [],
+      types: [],
+      status: 'all' as const,
+      search: '',
+    };
+  });
+
+  // Persist filters to localStorage
+  useEffect(() => {
+    localStorage.setItem('ledger-filters', JSON.stringify(filters));
+  }, [filters]);
+
+  // Sync selected month with date range filter
+  useEffect(() => {
+    if (filters.dateRange.preset === 'This month') {
+      const monthStart = startOfMonth(selectedMonth);
+      const monthEnd = endOfMonth(selectedMonth);
+      if (
+        filters.dateRange.from.getTime() !== monthStart.getTime() ||
+        filters.dateRange.to.getTime() !== monthEnd.getTime()
+      ) {
+        setFilters(prev => ({
+          ...prev,
+          dateRange: {
+            from: monthStart,
+            to: monthEnd,
+            preset: 'This month',
+          },
+        }));
+      }
+    }
+  }, [selectedMonth]);
+  
   // Auto-archive old bands
   useMemo(() => {
     const now = new Date();
@@ -82,6 +142,54 @@ export function LedgerPanel({ onNewBlockInBand }: {
     return Array.from(monthSet).sort().reverse();
   }, [bands]);
 
+  // Helper function to check if a row matches filters
+  const rowMatchesFilters = (row: any, block: Block) => {
+    // Owner filter
+    if (filters.owners.length > 0 && !filters.owners.includes(row.owner)) {
+      return false;
+    }
+
+    // Account filter (from/to base)
+    if (filters.accounts.length > 0) {
+      const hasMatchingAccount = 
+        (row.fromBaseId && filters.accounts.includes(row.fromBaseId)) ||
+        (row.toBaseId && filters.accounts.includes(row.toBaseId));
+      if (!hasMatchingAccount) return false;
+    }
+
+    // Type filter
+    if (filters.types.length > 0 && !filters.types.includes(block.type)) {
+      return false;
+    }
+
+    // Status filter
+    if (filters.status === 'executed' && !row.executed) return false;
+    if (filters.status === 'planned' && row.executed) return false;
+
+    // Search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      const matchesTitle = block.title.toLowerCase().includes(searchLower);
+      const matchesSource = row.source?.toLowerCase().includes(searchLower);
+      const matchesNotes = row.notes?.toLowerCase().includes(searchLower);
+      if (!matchesTitle && !matchesSource && !matchesNotes) return false;
+    }
+
+    return true;
+  };
+
+  // Helper function to check if a block matches filters (any row matches)
+  const blockMatchesFilters = (block: Block) => {
+    // Date range filter
+    const blockDate = block.date;
+    if (!isWithinInterval(blockDate, { start: filters.dateRange.from, end: filters.dateRange.to })) {
+      return false;
+    }
+
+    // Check if any row matches other filters
+    return block.rows.some(row => rowMatchesFilters(row, block));
+  };
+
   const bandSummaries = useMemo(() => {
     const monthStart = startOfMonth(selectedMonth);
     const monthEnd = endOfMonth(selectedMonth);
@@ -101,6 +209,7 @@ export function LedgerPanel({ onNewBlockInBand }: {
       .map((band) => {
         const bandBlocks = blocks.filter((b) => b.bandId === band.id);
         
+        // Calculate unfiltered totals (always show true band totals)
         const expectedIncome = bandBlocks
           .filter((b) => b.type === 'Income')
           .reduce((sum, b) => sum + calculateBlockTotal(b.rows), 0);
@@ -130,6 +239,32 @@ export function LedgerPanel({ onNewBlockInBand }: {
         };
       });
   }, [bands, blocks, selectedMonth, showArchived]);
+
+  // Check if any filters are active (not defaults)
+  const hasActiveFilters = useMemo(() => {
+    const now = new Date();
+    return (
+      filters.dateRange.preset !== 'This month' ||
+      filters.owners.length > 0 ||
+      filters.accounts.length > 0 ||
+      filters.types.length > 0 ||
+      filters.status !== 'all' ||
+      filters.search !== ''
+    );
+  }, [filters]);
+
+  // Filter blocks for display
+  const getFilteredBlocks = (bandId: string) => {
+    const bandBlocks = blocks.filter((b) => b.bandId === bandId);
+    if (!hasActiveFilters) return bandBlocks;
+    return bandBlocks.filter(blockMatchesFilters);
+  };
+
+  // Filter rows for display within a block
+  const getFilteredRows = (block: Block) => {
+    if (!hasActiveFilters) return block.rows;
+    return block.rows.filter(row => rowMatchesFilters(row, block));
+  };
   
   const [expandedBands, setExpandedBands] = useState<Set<string>>(new Set());
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
@@ -253,6 +388,14 @@ export function LedgerPanel({ onNewBlockInBand }: {
         </div>
       </div>
 
+      {/* Filter Bar */}
+      <LedgerFilterBar
+        filters={filters}
+        onFiltersChange={setFilters}
+        selectedMonth={selectedMonth}
+        onMonthChange={setSelectedMonth}
+      />
+
       {/* Month Navigation */}
       <Card>
         <CardContent className="py-3">
@@ -335,6 +478,11 @@ export function LedgerPanel({ onNewBlockInBand }: {
                           {summary.archived && (
                             <Badge variant="outline" className="text-xs">
                               Archived
+                            </Badge>
+                          )}
+                          {hasActiveFilters && (
+                            <Badge variant="secondary" className="text-xs">
+                              Filtered view
                             </Badge>
                           )}
                         </div>
@@ -433,31 +581,37 @@ export function LedgerPanel({ onNewBlockInBand }: {
 
               {isExpanded && (
                 <CardContent className="pt-4 space-y-3">
-                  {bandBlocks.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-muted-foreground mb-3">
-                        No blocks in this period
-                      </p>
-                      {onNewBlockInBand && (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => onNewBlockInBand(summary.bandId, {
-                            title: summary.title,
-                            startDate: summary.startDate,
-                            endDate: summary.endDate,
-                          })}
-                        >
-                          <Calendar className="w-4 h-4 mr-2" />
-                          Create First Block
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    bandBlocks.map((block) => {
+                  {(() => {
+                    const filteredBlocks = getFilteredBlocks(summary.bandId);
+                    if (filteredBlocks.length === 0) {
+                      return (
+                        <div className="text-center py-8">
+                          <p className="text-sm text-muted-foreground mb-3">
+                            {hasActiveFilters ? 'No blocks match filters' : 'No blocks in this period'}
+                          </p>
+                          {onNewBlockInBand && !hasActiveFilters && (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => onNewBlockInBand(summary.bandId, {
+                                title: summary.title,
+                                startDate: summary.startDate,
+                                endDate: summary.endDate,
+                              })}
+                            >
+                              <Calendar className="w-4 h-4 mr-2" />
+                              Create First Block
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return filteredBlocks.map((block) => {
                       const isBlockExpanded = expandedBlocks.has(block.id);
-                      const executedCount = block.rows.filter((r) => r.executed).length;
-                      const total = block.rows.reduce((sum, r) => sum + r.amount, 0);
+                      const filteredRows = getFilteredRows(block);
+                      const executedCount = filteredRows.filter((r) => r.executed).length;
+                      const total = filteredRows.reduce((sum, r) => sum + r.amount, 0);
 
                       return (
                         <Card key={block.id} className="border-l-4" style={{
@@ -535,8 +689,8 @@ export function LedgerPanel({ onNewBlockInBand }: {
                                       <th className="text-left p-2 font-medium">Notes</th>
                                     </tr>
                                   </thead>
-                                  <tbody>
-                                    {block.rows.map((row) => (
+                                   <tbody>
+                                     {filteredRows.map((row) => (
                                       <tr key={row.id} className="border-t">
                                         <td className="p-2">
                                           <Checkbox
@@ -590,8 +744,8 @@ export function LedgerPanel({ onNewBlockInBand }: {
                           )}
                         </Card>
                       );
-                    })
-                  )}
+                    });
+                  })()}
                 </CardContent>
               )}
             </Card>
