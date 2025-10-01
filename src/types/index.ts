@@ -21,6 +21,7 @@ export interface Base {
   balance: number;
   currency: string;
   tags: string[];
+  tagColor?: string; // Hex color for balance display
   createdAt: Date;
   updatedAt: Date;
 }

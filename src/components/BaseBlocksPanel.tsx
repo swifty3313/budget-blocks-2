@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
 import { Building2, Plus } from "lucide-react";
 import { ManageBasesDialog } from "./ManageBasesDialog";
+import { getTextColorForBackground } from "@/lib/colorUtils";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -75,11 +76,23 @@ export function BaseBlocksPanel() {
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
                     <span className="text-xs text-muted-foreground">Balance</span>
-                    <span className={`text-lg font-bold ${
-                      base.balance >= 0 ? 'text-kpi-positive' : 'text-kpi-negative'
-                    }`}>
-                      {formatCurrency(base.balance)}
-                    </span>
+                    {base.tagColor ? (
+                      <span 
+                        className="text-lg font-bold px-2 py-0.5 rounded"
+                        style={{ 
+                          backgroundColor: base.tagColor,
+                          color: getTextColorForBackground(base.tagColor)
+                        }}
+                      >
+                        {formatCurrency(base.balance)}
+                      </span>
+                    ) : (
+                      <span className={`text-lg font-bold ${
+                        base.balance >= 0 ? 'text-kpi-positive' : 'text-kpi-negative'
+                      }`}>
+                        {formatCurrency(base.balance)}
+                      </span>
+                    )}
                   </div>
                   {base.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">

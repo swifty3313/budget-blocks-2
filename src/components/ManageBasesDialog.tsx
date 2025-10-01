@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { COLOR_PALETTE, hasGoodContrast } from "@/lib/colorUtils";
 import type { Base } from "@/types";
 
 interface ManageBasesDialogProps {
@@ -32,7 +33,9 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
     balance: "0",
     currency: "USD",
     tags: [] as string[],
+    tagColor: "",
   });
+  const [customColor, setCustomColor] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,6 +53,7 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
       balance: parseFloat(formData.balance) || 0,
       currency: formData.currency,
       tags: formData.tags,
+      tagColor: formData.tagColor || undefined,
     };
 
     if (editingId) {
@@ -77,7 +81,9 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
       balance: "0",
       currency: "USD",
       tags: [],
+      tagColor: "",
     });
+    setCustomColor("");
     setEditingId(null);
   };
 
@@ -90,7 +96,9 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
       balance: base.balance.toString(),
       currency: base.currency,
       tags: base.tags,
+      tagColor: base.tagColor || "",
     });
+    setCustomColor(base.tagColor && !COLOR_PALETTE.find(c => c.value === base.tagColor) ? base.tagColor : "");
     setEditingId(base.id);
   };
 
@@ -176,6 +184,81 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label>Tag Color (optional)</Label>
+                <div className="grid grid-cols-5 gap-2">
+                  {COLOR_PALETTE.map((color) => (
+                    <button
+                      key={color.value}
+                      type="button"
+                      className={`w-10 h-10 rounded-md border-2 transition-all ${
+                        formData.tagColor === color.value ? 'ring-2 ring-primary ring-offset-2' : 'hover:scale-110'
+                      }`}
+                      style={{ backgroundColor: color.value }}
+                      onClick={() => {
+                        setFormData({ ...formData, tagColor: color.value });
+                        setCustomColor("");
+                      }}
+                      title={color.name}
+                    />
+                  ))}
+                </div>
+                
+                {/* Custom color input */}
+                <div className="flex gap-2 items-center pt-2">
+                  <Input
+                    type="text"
+                    placeholder="#000000"
+                    value={customColor}
+                    onChange={(e) => {
+                      setCustomColor(e.target.value);
+                      if (e.target.value.match(/^#[0-9A-F]{6}$/i)) {
+                        setFormData({ ...formData, tagColor: e.target.value });
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                  {formData.tagColor && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setFormData({ ...formData, tagColor: "" });
+                        setCustomColor("");
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+
+                {/* Contrast warning */}
+                {formData.tagColor && (() => {
+                  const { isGood, ratio, suggestedColor } = hasGoodContrast(formData.tagColor, false);
+                  return !isGood ? (
+                    <div className="flex items-start gap-2 p-2 rounded-md bg-warning/10 border border-warning/20 text-xs">
+                      <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium">Low contrast (ratio: {ratio.toFixed(2)}:1)</p>
+                        <p className="text-muted-foreground">May be hard to read. Try: {suggestedColor}</p>
+                        {suggestedColor && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-1"
+                            onClick={() => setFormData({ ...formData, tagColor: suggestedColor })}
+                          >
+                            Use suggested
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+
               <div className="flex gap-2">
                 <Button type="submit" className="flex-1">
                   <Plus className="w-4 h-4 mr-2" />
@@ -208,7 +291,16 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{base.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{base.name}</p>
+                          {base.tagColor && (
+                            <div
+                              className="w-3 h-3 rounded-full border"
+                              style={{ backgroundColor: base.tagColor }}
+                              title="Tag color"
+                            />
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">
                           {base.type} • ${base.balance.toFixed(2)}
                         </p>
