@@ -10,6 +10,7 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { ManageBlockDialog } from "@/components/ManageBlockDialog";
+import { CalculatorPopover } from "@/components/CalculatorPopover";
 import type { Block } from "@/types";
 
 const formatCurrency = (amount: number) => {
@@ -214,22 +215,40 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
 
                 {onNewBlockInBand && (
                   <div className="mt-3 pt-3 border-t">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNewBlockInBand(summary.bandId, {
-                          title: summary.title,
-                          startDate: summary.startDate,
-                          endDate: summary.endDate,
-                        });
-                      }}
-                      className="w-full"
-                    >
-                      <Calendar className="w-4 h-4 mr-2" />
-                      Add Block to this Period
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onNewBlockInBand(summary.bandId, {
+                            title: summary.title,
+                            startDate: summary.startDate,
+                            endDate: summary.endDate,
+                          });
+                        }}
+                        className="flex-1"
+                      >
+                        <Calendar className="w-4 h-4 mr-2" />
+                        Add Block
+                      </Button>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <CalculatorPopover
+                          availableToAllocate={summary.availableToAllocate}
+                          bandId={summary.bandId}
+                          bandTitle={summary.title}
+                          onUseAsBasis={(result) => {
+                            // For now, just open the New Block dialog
+                            // Task 4 will implement the allocation basis prefill
+                            onNewBlockInBand(summary.bandId, {
+                              title: summary.title,
+                              startDate: summary.startDate,
+                              endDate: summary.endDate,
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
               </CardHeader>
