@@ -51,6 +51,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
   const [allocationBasis, setAllocationBasis] = useState<number>(0);
   const [basisMode, setBasisMode] = useState<'manual' | 'band' | 'calculator'>('manual');
   const [enforceFullAllocation, setEnforceFullAllocation] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   
   const [rows, setRows] = useState<Row[]>([]);
 
@@ -303,6 +304,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
     setAllocationBasis(0);
     setBasisMode('manual');
     setEnforceFullAllocation(false);
+    setSelectedTemplateId("");
   };
 
   const handleInsertTemplate = (template: any) => {
@@ -329,6 +331,31 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
     setTitle(template.title);
     setRows(template.rows.map((r: any) => ({ ...r, id: uuidv4() })));
     setActiveTab("new");
+  };
+
+  const applyTemplate = (templateId: string) => {
+    const template = library.find(t => t.id === templateId);
+    if (!template) return;
+
+    // Insert template rows with new IDs and default date
+    const instanceDate = bandInfo?.startDate || getDefaultRowDate();
+    const templateRows = template.rows.map((r: any) => ({
+      ...r,
+      id: uuidv4(),
+      date: instanceDate,
+      executed: false,
+    }));
+
+    setRows(templateRows);
+    
+    // Basis handling: Calculator wins if present, otherwise check template
+    // If coming from Calculator, allocationBasis is already set and should not be overridden
+    if (basisSource !== 'calculator') {
+      // Template might have a saved basis mode/value - for now we'll keep the current basis
+      // In the future, templates could store their own basis preference
+    }
+    
+    toast.success(`Applied template: ${template.title}`);
   };
 
   const getBlockTypeColor = (type: string) => {
@@ -538,6 +565,56 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                     Enforce full allocation (Allocated must equal Basis)
                   </Label>
                 </div>
+              </div>
+            )}
+
+            {/* Start from Template - Flow only */}
+            {blockType === 'Flow' && (
+              <div className="p-3 border rounded-lg bg-muted/10 space-y-2">
+                <Label className="text-xs font-medium">Start from</Label>
+                <div className="flex gap-2">
+                  <Select 
+                    value={selectedTemplateId || "none"} 
+                    onValueChange={(value) => {
+                      setSelectedTemplateId(value === "none" ? "" : value);
+                    }}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="None (blank)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (blank)</SelectItem>
+                      {library
+                        .filter(t => t.type === 'Flow')
+                        .map((template) => {
+                          const rowCount = template.rows.length;
+                          const total = template.rows.reduce((sum, r) => sum + r.amount, 0);
+                          return (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.title} ({rowCount} rows, {formatCurrency(total)})
+                            </SelectItem>
+                          );
+                        })}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!selectedTemplateId}
+                    onClick={() => {
+                      if (selectedTemplateId) {
+                        applyTemplate(selectedTemplateId);
+                      }
+                    }}
+                  >
+                    Apply Template
+                  </Button>
+                </div>
+                {library.filter(t => t.type === 'Flow').length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No Flow templates saved yet. Create a Flow block and save it to your library.
+                  </p>
+                )}
               </div>
             )}
 
