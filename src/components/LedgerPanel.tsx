@@ -3,9 +3,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useStore } from "@/lib/store";
-import { ChevronDown, ChevronRight, Calendar } from "lucide-react";
+import { ChevronDown, ChevronRight, Calendar, Settings } from "lucide-react";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
+import { ManageBlockDialog } from "@/components/ManageBlockDialog";
+import type { Block } from "@/types";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -73,6 +75,7 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
   
   const [expandedBands, setExpandedBands] = useState<Set<string>>(new Set());
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
+  const [manageBlock, setManageBlock] = useState<Block | null>(null);
 
   const toggleBand = (bandId: string) => {
     setExpandedBands((prev) => {
@@ -232,12 +235,12 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
                                           block.type === 'Fixed Bill' ? 'hsl(var(--warning))' :
                                           'hsl(var(--accent))'
                         }}>
-                          <CardHeader
-                            className="cursor-pointer py-3"
-                            onClick={() => toggleBlock(block.id)}
-                          >
+                          <CardHeader className="py-3">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3 flex-1">
+                              <div 
+                                className="flex items-center gap-3 flex-1 cursor-pointer"
+                                onClick={() => toggleBlock(block.id)}
+                              >
                                 {isBlockExpanded ? (
                                   <ChevronDown className="w-4 h-4 text-muted-foreground" />
                                 ) : (
@@ -255,17 +258,30 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
                                   </p>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <p className="font-semibold">{formatCurrency(total)}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {executedCount}/{block.rows.length} executed
-                                </p>
+                              <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                  <p className="font-semibold">{formatCurrency(total)}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {executedCount}/{block.rows.length} executed
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setManageBlock(block);
+                                  }}
+                                >
+                                  <Settings className="w-4 h-4" />
+                                </Button>
                               </div>
                             </div>
                           </CardHeader>
 
                           {isBlockExpanded && block.rows.length > 0 && (
-                            <CardContent className="pt-0">
+                            <CardContent className="pt-0 space-y-3">
                               <div className="border rounded-lg overflow-hidden">
                                 <table className="w-full text-sm">
                                   <thead className="bg-muted/50">
@@ -309,6 +325,15 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
                                   </tbody>
                                 </table>
                               </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => setManageBlock(block)}
+                              >
+                                <Settings className="w-4 h-4 mr-2" />
+                                Manage Block
+                              </Button>
                             </CardContent>
                           )}
                         </Card>
@@ -321,6 +346,12 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
           );
         })}
       </div>
+
+      <ManageBlockDialog
+        block={manageBlock}
+        open={!!manageBlock}
+        onOpenChange={(open) => !open && setManageBlock(null)}
+      />
     </div>
   );
 }
