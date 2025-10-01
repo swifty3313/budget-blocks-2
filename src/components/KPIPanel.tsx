@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useStore, selectKPIs } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { TrendingUp, TrendingDown, DollarSign, CreditCard, Wallet } from "lucide-react";
 
 const formatCurrency = (amount: number) => {
@@ -11,28 +11,51 @@ const formatCurrency = (amount: number) => {
 };
 
 export function KPIPanel() {
-  const kpis = useStore(selectKPIs);
+  const bases = useStore((state) => state.bases);
+  
+  const cashTypes = ['Checking', 'Savings', 'Vault'];
+  const creditTypes = ['Credit'];
+  const assetTypes = ['Checking', 'Savings', 'Vault', 'Goal'];
+  const liabilityTypes = ['Credit', 'Loan'];
+
+  const totalCash = bases
+    .filter((b) => cashTypes.includes(b.type))
+    .reduce((sum, b) => sum + b.balance, 0);
+
+  const totalCreditDebt = bases
+    .filter((b) => creditTypes.includes(b.type))
+    .reduce((sum, b) => sum + Math.abs(b.balance), 0);
+
+  const assets = bases
+    .filter((b) => assetTypes.includes(b.type))
+    .reduce((sum, b) => sum + b.balance, 0);
+
+  const liabilities = bases
+    .filter((b) => liabilityTypes.includes(b.type))
+    .reduce((sum, b) => sum + b.balance, 0);
+
+  const netWorth = assets + liabilities;
 
   const kpiCards = [
     {
       title: "Total Cash Available",
-      value: kpis.totalCash,
+      value: totalCash,
       icon: Wallet,
       colorClass: "text-kpi-positive",
       description: "Checking + Savings + Vault",
     },
     {
       title: "Total Credit Card Debt",
-      value: kpis.totalCreditDebt,
+      value: totalCreditDebt,
       icon: CreditCard,
       colorClass: "text-kpi-negative",
       description: "Credit balances",
     },
     {
       title: "Net Worth",
-      value: kpis.netWorth,
+      value: netWorth,
       icon: DollarSign,
-      colorClass: kpis.netWorth >= 0 ? "text-kpi-positive" : "text-kpi-negative",
+      colorClass: netWorth >= 0 ? "text-kpi-positive" : "text-kpi-negative",
       description: "Assets - Liabilities",
     },
   ];

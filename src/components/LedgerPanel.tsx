@@ -2,9 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useStore, selectBandSummaries } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { ChevronDown, ChevronRight, Calendar } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 
 const formatCurrency = (amount: number) => {
@@ -24,12 +24,52 @@ const getBlockTypeColor = (type: string) => {
   return colors[type] || 'bg-muted text-muted-foreground';
 };
 
+// Helper to calculate block total
+const calculateBlockTotal = (rows: any[]): number => {
+  return rows.reduce((sum, row) => sum + row.amount, 0);
+};
+
 export function LedgerPanel() {
-  const bandSummaries = useStore(selectBandSummaries);
+  const bands = useStore((state) => state.bands);
   const blocks = useStore((state) => state.blocks);
   const executeRow = useStore((state) => state.executeRow);
   const undoExecuteRow = useStore((state) => state.undoExecuteRow);
   const bases = useStore((state) => state.bases);
+  
+  const bandSummaries = useMemo(() => {
+    return bands
+      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+      .map((band) => {
+        const bandBlocks = blocks.filter((b) => b.bandId === band.id);
+        
+        const expectedIncome = bandBlocks
+          .filter((b) => b.type === 'Income')
+          .reduce((sum, b) => sum + calculateBlockTotal(b.rows), 0);
+
+        const expectedFixed = bandBlocks
+          .filter((b) => b.type === 'Fixed Bill')
+          .reduce((sum, b) => sum + calculateBlockTotal(b.rows), 0);
+
+        const availableToAllocate = expectedIncome - expectedFixed;
+
+        const executedCount = bandBlocks.reduce(
+          (count, b) => count + b.rows.filter((r) => r.executed).length,
+          0
+        );
+
+        return {
+          bandId: band.id,
+          title: band.title,
+          startDate: band.startDate,
+          endDate: band.endDate,
+          expectedIncome,
+          expectedFixed,
+          availableToAllocate,
+          blockCount: bandBlocks.length,
+          executedCount,
+        };
+      });
+  }, [bands, blocks]);
   
   const [expandedBands, setExpandedBands] = useState<Set<string>>(new Set());
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
