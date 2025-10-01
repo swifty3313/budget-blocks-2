@@ -32,6 +32,8 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
 
   const [rows, setRows] = useState<Row[]>([]);
   const [updateTemplate, setUpdateTemplate] = useState(false);
+  const [cardViewFields, setCardViewFields] = useState<string[]>(['source', 'amount', 'date']);
+  const [showCardView, setShowCardView] = useState(false);
 
   useEffect(() => {
     if (block && open) {
@@ -185,8 +187,116 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Rows Table */}
-          <div className="border rounded-lg overflow-x-auto">
+          {/* Card View Toggle (Fixed Bill only) */}
+          {blockType === 'Fixed Bill' && (
+            <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Card Preview:</span>
+                {showCardView && (
+                  <div className="flex gap-1">
+                    {['source', 'owner', 'fromBaseId', 'amount', 'category', 'date', 'notes'].map((field) => (
+                      <label key={field} className="flex items-center gap-1 text-xs cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cardViewFields.includes(field)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              if (cardViewFields.length < 3) {
+                                setCardViewFields([...cardViewFields, field]);
+                              } else {
+                                toast.error("Maximum 3 fields in card view");
+                              }
+                            } else {
+                              if (cardViewFields.length > 1) {
+                                setCardViewFields(cardViewFields.filter(f => f !== field));
+                              } else {
+                                toast.error("At least 1 field required");
+                              }
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        {field === 'source' ? 'Vendor' : 
+                         field === 'fromBaseId' ? 'From Base' :
+                         field.charAt(0).toUpperCase() + field.slice(1)}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCardView(!showCardView)}
+              >
+                {showCardView ? 'Show Table' : 'Show Cards'}
+              </Button>
+            </div>
+          )}
+
+          {/* Card View or Table */}
+          {showCardView && blockType === 'Fixed Bill' ? (
+            <div className="space-y-3">
+              <div className="p-3 border rounded-lg bg-muted/20">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="font-medium">Total:</span>
+                  <span className="text-lg font-bold">
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
+                      rows.reduce((sum, r) => sum + r.amount, 0)
+                    )}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {rows.length} transaction(s)
+                </div>
+              </div>
+              {rows.map((row) => (
+                <div key={row.id} className="p-3 border rounded-lg hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 space-y-1">
+                      {cardViewFields.map((field) => {
+                        let value = '';
+                        if (field === 'source') value = row.source || '-';
+                        else if (field === 'owner') value = row.owner;
+                        else if (field === 'fromBaseId') value = bases.find(b => b.id === row.fromBaseId)?.name || '-';
+                        else if (field === 'amount') value = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(row.amount);
+                        else if (field === 'category') value = row.category || '-';
+                        else if (field === 'date') value = format(row.date, 'MMM d, yyyy');
+                        else if (field === 'notes') value = row.notes || '-';
+                        
+                        return (
+                          <div key={field} className="text-sm">
+                            {field === 'amount' ? (
+                              <span className="font-bold text-base">{value}</span>
+                            ) : (
+                              <span className={field === 'source' ? 'font-medium' : 'text-muted-foreground'}>
+                                {value}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2 ml-3">
+                      <Checkbox
+                        checked={row.executed}
+                        onCheckedChange={() => handleToggleExecute(row.id)}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => deleteRow(row.id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
@@ -425,6 +535,7 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
               </tbody>
             </table>
           </div>
+          )}
 
           <Button variant="outline" onClick={addRow} className="w-full">
             <Plus className="w-4 h-4 mr-2" />

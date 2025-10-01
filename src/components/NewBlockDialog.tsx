@@ -16,6 +16,7 @@ import { Plus, Trash2, Calendar, Pencil, Info, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
+import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
 import type { BlockType, Row } from "@/types";
 
 interface NewBlockDialogProps {
@@ -54,6 +55,9 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
   const [basisMode, setBasisMode] = useState<'manual' | 'band' | 'calculator'>('manual');
   const [enforceFullAllocation, setEnforceFullAllocation] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [showApplyFlowTemplate, setShowApplyFlowTemplate] = useState(false);
+  const [selectedFlowTemplate, setSelectedFlowTemplate] = useState<any>(null);
+  const [lastInsertedBlockId, setLastInsertedBlockId] = useState<string | null>(null);
   
   // Compact mode state with localStorage persistence
   const [isCompact, setIsCompact] = useState(() => {
@@ -314,9 +318,19 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
   };
 
   const handleInsertTemplate = (template: any) => {
+    // If Flow template, open selective apply dialog
+    if (template.type === 'Flow') {
+      setSelectedFlowTemplate(template);
+      setShowApplyFlowTemplate(true);
+      return;
+    }
+
+    // For other types, insert directly
     const instanceDate = bandInfo?.startDate || new Date();
+    const newBlockId = uuidv4();
     addBlock({
       ...template,
+      id: newBlockId,
       isTemplate: false,
       bandId: bandId,
       date: instanceDate,
@@ -327,7 +341,101 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
         executed: false,
       })),
     });
-    toast.success(`${template.title} inserted`);
+    
+    setLastInsertedBlockId(newBlockId);
+    
+    // Show snackbar with Insert again and Undo
+    toast.success(
+      <div className="flex items-center justify-between gap-4 w-full">
+        <span>Inserted '{template.title}' ({template.rows.length} rows)</span>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleInsertTemplate(template)}
+            className="h-7 text-xs"
+          >
+            Insert again
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (newBlockId) {
+                const deleteBlock = useStore.getState().deleteBlock;
+                deleteBlock(newBlockId);
+                toast.info("Insertion undone");
+              }
+            }}
+            className="h-7 text-xs"
+          >
+            Undo
+          </Button>
+        </div>
+      </div>,
+      { duration: 5000 }
+    );
+    
+    onOpenChange(false);
+  };
+
+  const handleApplyFlowTemplate = (rows: Row[]) => {
+    if (!selectedFlowTemplate) return;
+
+    const instanceDate = bandInfo?.startDate || new Date();
+    const newBlockId = uuidv4();
+    
+    addBlock({
+      type: 'Flow',
+      title: selectedFlowTemplate.title,
+      date: instanceDate,
+      tags: [],
+      rows: rows,
+      bandId: bandId,
+      id: newBlockId,
+      isTemplate: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any);
+
+    setLastInsertedBlockId(newBlockId);
+    
+    toast.success(
+      <div className="flex items-center justify-between gap-4 w-full">
+        <span>Inserted '{selectedFlowTemplate.title}' ({rows.length} rows)</span>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSelectedFlowTemplate(selectedFlowTemplate);
+              setShowApplyFlowTemplate(true);
+            }}
+            className="h-7 text-xs"
+          >
+            Insert again
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (newBlockId) {
+                const deleteBlock = useStore.getState().deleteBlock;
+                deleteBlock(newBlockId);
+                toast.info("Insertion undone");
+              }
+            }}
+            className="h-7 text-xs"
+          >
+            Undo
+          </Button>
+        </div>
+      </div>,
+      { duration: 5000 }
+    );
+    
+    setShowApplyFlowTemplate(false);
+    setSelectedFlowTemplate(null);
     onOpenChange(false);
   };
 
@@ -1080,7 +1188,17 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
             ) : (
               <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {library.map((template) => {
-                  const total = template.rows.reduce((sum, row) => sum + row.amount, 0);
+                  // Calculate total - for Flow templates with %, show "est." with assumed basis
+                  const hasPercentRows = template.type === 'Flow' && template.rows.some(r => r.flowMode === '%');
+                  const assumedBasis = availableToAllocate || 1000; // Use band available or default
+                  
+                  const total = template.rows.reduce((sum, row) => {
+                    if (template.type === 'Flow' && row.flowMode === '%' && row.flowValue) {
+                      return sum + (row.flowValue / 100 * assumedBasis);
+                    }
+                    return sum + (row.amount || 0);
+                  }, 0);
+
                   return (
                     <Card key={template.id} className="hover:shadow-md transition-shadow">
                       <CardHeader className="pb-2 px-3 pt-3">
@@ -1097,7 +1215,9 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                       </CardHeader>
                       <CardContent className="px-3 pb-3 space-y-2">
                         <div className="flex items-baseline justify-between">
-                          <span className="text-xs text-muted-foreground">Total</span>
+                          <span className="text-xs text-muted-foreground">
+                            Total {hasPercentRows && '(est.)'}
+                          </span>
                           <span className="text-sm font-bold">{formatCurrency(total)}</span>
                         </div>
                         <div className="text-xs text-muted-foreground space-y-0.5">
@@ -1165,6 +1285,17 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
           )}
         </DialogFooter>
       </DialogContent>
+
+      {/* Apply Flow Template Dialog */}
+      <ApplyFlowTemplateDialog
+        open={showApplyFlowTemplate}
+        onOpenChange={setShowApplyFlowTemplate}
+        template={selectedFlowTemplate}
+        onInsert={handleApplyFlowTemplate}
+        bandInfo={bandInfo}
+        initialBasis={initialBasis}
+        availableToAllocate={availableToAllocate}
+      />
     </Dialog>
   );
 }

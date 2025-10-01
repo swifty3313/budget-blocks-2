@@ -18,6 +18,7 @@ import { LedgerFilterBar, type LedgerFilters } from "@/components/LedgerFilterBa
 import { BandSettingsDialog } from "@/components/BandSettingsDialog";
 import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
+import { QuickExpenseDialog } from "@/components/QuickExpenseDialog";
 import type { Block, PayPeriodBand, Row } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 
@@ -71,6 +72,8 @@ export function LedgerPanel({
   const [bandSettingsId, setBandSettingsId] = useState<string | null>(null);
   const [pickBillsBand, setPickBillsBand] = useState<PayPeriodBand | null>(null);
   const [showManageBills, setShowManageBills] = useState(false);
+  const [quickExpenseBand, setQuickExpenseBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
+  const [lastInsertedBlockId, setLastInsertedBlockId] = useState<string | null>(null);
   
   // Filter state - persisted to localStorage
   const [filters, setFilters] = useState<LedgerFilters>(() => {
@@ -653,8 +656,25 @@ export function LedgerPanel({
                         }}
                         className="flex-1"
                       >
-                        <Receipt className="w-4 h-4 mr-2" />
+                       <Receipt className="w-4 h-4 mr-2" />
                         Insert Bills
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setQuickExpenseBand({
+                            id: summary.bandId,
+                            title: summary.title,
+                            startDate: summary.startDate,
+                            endDate: summary.endDate,
+                          });
+                        }}
+                        className="flex-1"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Expense
                       </Button>
                       <div onClick={(e) => e.stopPropagation()}>
                         <CalculatorPopover
@@ -999,6 +1019,16 @@ export function LedgerPanel({
         open={showManageBills}
         onOpenChange={setShowManageBills}
       />
+
+      {/* Quick Expense Dialog */}
+      {quickExpenseBand && (
+        <QuickExpenseDialog
+          open={quickExpenseBand !== null}
+          onOpenChange={(open) => !open && setQuickExpenseBand(null)}
+          bandId={quickExpenseBand.id}
+          bandInfo={quickExpenseBand}
+        />
+      )}
     </div>
   );
 }
