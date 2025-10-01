@@ -1,73 +1,146 @@
-# Welcome to your Lovable project
+# Budget Blocks
 
-## Project info
+A sophisticated Notion-style personal finance web application for planning and tracking money with Blocks, Pay Period Bands, and intelligent account management.
 
-**URL**: https://lovable.dev/projects/672b5a46-b0f7-47cf-b071-eae329eadfc6
+## 🚀 Features
 
-## How can I edit this code?
+### Core Functionality
+- **Bases (Accounts)**: Manage multiple financial accounts (Checking, Savings, Credit, Loan, Vault, Goal)
+- **Blocks**: Group transactions into Income, Fixed Bill, or Flow blocks
+- **Pay Period Bands**: Organize blocks by date-bounded periods (weekly, biweekly, monthly, custom)
+- **KPI Dashboard**: Real-time financial overview with Total Cash, Credit Debt, and Net Worth
+- **Balance Engine**: Execute transactions to update account balances in real-time
+- **Block Library**: Save and reuse transaction templates
 
-There are several ways of editing your application.
+### Technical Features
+- **Local-First**: All data stored in browser using Zustand + LocalStorage
+- **Export/Import**: JSON-based data portability
+- **Responsive Design**: Beautiful UI built with Tailwind CSS and shadcn/ui
+- **Professional Finance Theme**: Blue/teal color palette with semantic design tokens
+- **Type-Safe**: Full TypeScript implementation
 
-**Use Lovable**
+## 🛠️ Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/672b5a46-b0f7-47cf-b071-eae329eadfc6) and start prompting.
+- **Framework**: React + TypeScript + Vite
+- **State Management**: Zustand with persistence
+- **UI Components**: shadcn/ui (Radix UI primitives)
+- **Styling**: Tailwind CSS with custom design system
+- **Date Handling**: date-fns
+- **Validation**: zod
+- **Icons**: Lucide React
 
-Changes made via Lovable will be committed automatically to this repo.
+## 📋 Getting Started
 
-**Use your preferred IDE**
+### Quick Start
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1. **Welcome Dialog**: On first launch, choose "Load Sample Data" to explore features or "Start Fresh" to begin from scratch
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+2. **Create Bases**: Set up your financial accounts (checking, savings, credit cards, etc.)
 
-Follow these steps:
+3. **Set Pay Periods**: Generate monthly, biweekly, or custom pay period bands
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+4. **Add Blocks**: Create Income, Fixed Bill, or Flow blocks to track transactions
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+5. **Execute Transactions**: Check off transactions as they occur to update your real balances
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Key Workflows
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+#### Managing Bases
+- Click "Manage Bases" in the Bases panel
+- Add accounts with name, type, institution, balance
+- View live balances updated as you execute transactions
+
+#### Creating Blocks
+1. Click "New Block" in the top bar
+2. Choose block type: Income, Fixed Bill, or Flow
+3. Add transaction rows with amounts and account associations
+4. Save & Insert to add to ledger, or Save to Library for reuse
+
+#### Pay Period Management
+- Click "Pay Periods" in the top bar
+- Quick generate monthly or biweekly periods
+- Blocks automatically assigned to periods by date
+
+#### Executing Transactions
+- Expand blocks in the Ledger panel
+- Check the "Execute" checkbox for each transaction
+- Watch your base balances update in real-time
+
+## 📊 Data Model
+
+### Bases
+Accounts where money lives. Each has:
+- Name, Type, Institution, Identifier
+- Current balance
+- Tags for organization
+
+### Blocks
+Groups of transactions. Types:
+- **Income**: Money coming in (salary, freelance, etc.)
+- **Fixed Bill**: Recurring expenses (rent, utilities, subscriptions)
+- **Flow**: Custom transactions (transfers, payments, expenses)
+
+### Rows
+Individual transactions within blocks:
+- From/To bases
+- Amount, category, notes
+- Executed status
+
+### Pay Period Bands
+Time containers that organize blocks:
+- Start/End dates
+- Auto-calculate Expected Income, Expected Fixed, Available to Allocate
+- Show execution progress
+
+## 🎨 Design System
+
+The app uses a professional finance-themed design with:
+- **Primary**: Professional blue (`hsl(214 95% 45%)`)
+- **Secondary**: Growth green (`hsl(164 75% 42%)`)
+- **Success**: Positive green for cash/income
+- **Warning**: Amber for bills/pending
+- **Destructive**: Red for debt/negative
+
+All colors defined as HSL semantic tokens for consistency and theme support.
+
+## 🔒 Data & Privacy
+
+- **100% Local**: All data stored in your browser's LocalStorage
+- **No Server**: No data leaves your device
+- **Export Anytime**: Download your data as JSON
+- **Import**: Restore from exported JSON files
+
+## 🚧 Future Enhancements (Not in MVP)
+
+- Recurring block automation
+- Forecast KPIs (planned transactions)
+- Drag-and-drop block reordering
+- Charts and trend visualization
+- Multi-currency support
+- Mobile app
+- Cloud sync option
+
+## 📦 Project Structure
+
+```
+src/
+├── components/          # UI components
+│   ├── ui/             # shadcn/ui components
+│   ├── KPIPanel.tsx    # Financial overview
+│   ├── BaseBlocksPanel.tsx
+│   ├── LedgerPanel.tsx
+│   ├── BlockLibraryPanel.tsx
+│   └── dialogs/        # Modal components
+├── lib/
+│   ├── store.ts        # Zustand state management
+│   ├── db.ts           # Dexie DB setup (future)
+│   └── utils.ts        # Utilities
+├── types/
+│   └── index.ts        # TypeScript types
+└── pages/
+    └── Index.tsx       # Main app page
 ```
 
-**Edit a file directly in GitHub**
+## 🤝 Contributing
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/672b5a46-b0f7-47cf-b071-eae329eadfc6) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+This is a personal finance management tool. Feel free to fork and customize for your needs!

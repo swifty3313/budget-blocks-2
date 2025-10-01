@@ -1,0 +1,141 @@
+export type BaseType = 'Checking' | 'Savings' | 'Credit' | 'Loan' | 'Vault' | 'Goal' | string;
+
+export type BlockType = 'Income' | 'Fixed Bill' | 'Flow';
+
+export type FlowRowType = 'Transfer' | 'Payment' | 'Expense' | 'Reimbursement' | string;
+
+export type RecurrenceFrequency = 
+  | 'Weekly' 
+  | 'Biweekly' 
+  | 'Semi-Monthly' 
+  | 'Monthly' 
+  | 'Quarterly' 
+  | 'Yearly';
+
+export interface Base {
+  id: string;
+  name: string;
+  type: BaseType;
+  institution?: string;
+  identifier?: string;
+  balance: number;
+  currency: string;
+  tags: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Row {
+  id: string;
+  date: Date;
+  owner: string;
+  source?: string;
+  fromBaseId?: string;
+  toBaseId?: string;
+  amount: number;
+  type?: FlowRowType;
+  category?: string;
+  notes?: string;
+  executed: boolean;
+}
+
+export interface RecurrenceRule {
+  frequency: RecurrenceFrequency;
+  startDate: Date;
+  endDate?: Date;
+  snapToBands: boolean;
+  anchorDate?: Date; // For biweekly
+  dayOfMonth?: number; // For semi-monthly
+}
+
+export interface Block {
+  id: string;
+  type: BlockType;
+  title: string;
+  date: Date;
+  owner: string;
+  source?: string;
+  tags: string[];
+  rows: Row[];
+  bandId?: string;
+  recurrence?: RecurrenceRule;
+  isTemplate?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PayPeriodBand {
+  id: string;
+  title: string;
+  startDate: Date;
+  endDate: Date;
+  order: number;
+}
+
+export interface BandFrequencyConfig {
+  frequency: 'Weekly' | 'Biweekly' | 'Semi-Monthly' | 'Monthly' | 'Custom';
+  anchorDate?: Date;
+  semiMonthlyDays?: [number, number];
+}
+
+export interface AppState {
+  bases: Base[];
+  blocks: Block[];
+  bands: PayPeriodBand[];
+  library: Block[];
+  
+  // Master lists
+  owners: string[];
+  categories: string[];
+  vendors: string[];
+  institutions: string[];
+  baseTypes: BaseType[];
+  flowTypes: FlowRowType[];
+  
+  // Actions
+  addBase: (base: Omit<Base, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateBase: (id: string, updates: Partial<Base>) => void;
+  deleteBase: (id: string) => void;
+  
+  addBlock: (block: Omit<Block, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateBlock: (id: string, updates: Partial<Block>) => void;
+  deleteBlock: (id: string) => void;
+  moveBlockToBand: (blockId: string, bandId: string | undefined) => void;
+  
+  addBand: (band: Omit<PayPeriodBand, 'id'>) => void;
+  updateBand: (id: string, updates: Partial<PayPeriodBand>) => void;
+  deleteBand: (id: string) => void;
+  
+  saveToLibrary: (block: Block) => void;
+  removeFromLibrary: (id: string) => void;
+  
+  executeRow: (blockId: string, rowId: string) => void;
+  undoExecuteRow: (blockId: string, rowId: string) => void;
+  
+  addToMasterList: (type: 'owners' | 'categories' | 'vendors' | 'institutions' | 'baseTypes' | 'flowTypes', value: string) => void;
+  
+  exportData: () => string;
+  importData: (json: string) => void;
+  clearAll: () => void;
+}
+
+export interface KPIData {
+  totalCash: number;
+  totalCreditDebt: number;
+  netWorth: number;
+  forecastedCash?: number;
+  forecastedDebt?: number;
+  forecastedNetWorth?: number;
+}
+
+export interface BandSummary {
+  bandId: string;
+  title: string;
+  startDate: Date;
+  endDate: Date;
+  expectedIncome: number;
+  expectedFixed: number;
+  availableToAllocate: number;
+  blockCount: number;
+  executedCount: number;
+}
