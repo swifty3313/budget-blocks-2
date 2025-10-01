@@ -76,6 +76,8 @@ export interface PayPeriodBand {
   sourceScheduleId?: string; // Reference to the schedule that generated this band
   attributionRule?: 'end-month' | 'start-month' | 'shift-plus-1';
   displayMonth?: string; // YYYY-MM format for ledger paging (calculated from attribution rule)
+  locked?: boolean; // When true, band won't be regenerated in composite mode
+  compositePaydays?: string[]; // Schedule IDs contributing to this band's boundaries
 }
 
 export interface BandFrequencyConfig {

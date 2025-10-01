@@ -10,10 +10,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, Calendar, RefreshCw, Edit2, Copy, AlertTriangle, Settings } from "lucide-react";
+import { Plus, Trash2, Calendar, RefreshCw, Edit2, Copy, AlertTriangle, Settings, Lock, Unlock } from "lucide-react";
 import { toast } from "sonner";
-import { format, addWeeks, addMonths, addDays, startOfMonth, endOfMonth, lastDayOfMonth, setDate } from "date-fns";
+import { format, addWeeks, addMonths, addDays, startOfMonth, endOfMonth, lastDayOfMonth, setDate, subMonths } from "date-fns";
+import { generateCompositeBands } from "@/lib/compositePaydays";
 import type { PayPeriodBand, PaySchedule } from "@/types";
 
 interface ManagePayPeriodsDialogProps {
@@ -83,6 +85,17 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
   const [bulkDeleteAction, setBulkDeleteAction] = useState<'move' | 'delete'>('move');
   const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
   const [bandsWithBlocks, setBandsWithBlocks] = useState<Array<{ bandId: string; blockCount: number; hasExecuted: boolean }>>([]);
+
+  // Composite mode
+  const [compositeMode, setCompositeMode] = useState(false);
+  const [compositePreviews, setCompositePreviews] = useState<Array<{
+    startDate: Date;
+    endDate: Date;
+    sourcePaydays: Array<{ scheduleId: string; scheduleName: string; type: string }>;
+    tempTitle: string;
+  }>>([]);
+  const [excludedPaydays, setExcludedPaydays] = useState<Set<string>>(new Set());
+  const [includeLeadIn, setIncludeLeadIn] = useState(true);
 
   // Schedule form state
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
@@ -637,6 +650,89 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
     }
   };
 
+  const handleToggleLock = (bandId: string) => {
+    const band = bands.find(b => b.id === bandId);
+    if (!band) return;
+    
+    updateBand(bandId, { locked: !band.locked });
+    toast.success(band.locked ? "Band unlocked" : "Band locked");
+  };
+
+  const handleGenerateComposite = () => {
+    if (schedules.length === 0) {
+      toast.error("Please create at least one schedule first");
+      return;
+    }
+
+    const now = new Date();
+    const startRange = subMonths(now, 3);
+    const endRange = addMonths(now, 9);
+
+    const compositeBands = generateCompositeBands(
+      schedules,
+      startRange,
+      endRange,
+      excludedPaydays,
+      includeLeadIn
+    );
+
+    const previews = compositeBands.map((band, index) => {
+      const sourceNames = band.sourcePaydays.map(p => `${p.scheduleName} (${p.type})`).join(', ');
+      return {
+        ...band,
+        tempTitle: `Period ${index + 1}`,
+      };
+    });
+
+    setCompositePreviews(previews);
+    toast.success(`Generated ${previews.length} composite bands`);
+  };
+
+  const handleApplyComposite = () => {
+    if (compositePreviews.length === 0) {
+      toast.error("Please generate composite bands first");
+      return;
+    }
+
+    // Get locked bands
+    const lockedBands = bands.filter(b => b.locked);
+
+    // Delete unlocked bands
+    bands.filter(b => !b.locked).forEach(b => deleteBand(b.id));
+
+    // Add new composite bands
+    let addedCount = 0;
+    compositePreviews.forEach((preview, index) => {
+      const rule = schedules[0]?.attributionRule || 'end-month';
+      
+      const band: Omit<PayPeriodBand, 'id'> = {
+        title: preview.tempTitle,
+        startDate: preview.startDate,
+        endDate: preview.endDate,
+        order: index,
+        attributionRule: rule,
+        displayMonth: calculateDisplayMonth({
+          startDate: preview.startDate,
+          endDate: preview.endDate,
+        } as PayPeriodBand, rule),
+        compositePaydays: preview.sourcePaydays.map(p => p.scheduleId),
+      };
+      
+      addBand(band);
+      addedCount++;
+    });
+
+    toast.success(`Applied ${addedCount} composite bands. ${lockedBands.length} bands kept locked.`);
+    
+    // Reassign blocks
+    const count = reassignBlocksToBands();
+    if (count > 0) {
+      toast.info(`${count} block(s) reassigned to bands`);
+    }
+
+    setCompositePreviews([]);
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -647,6 +743,21 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
               Create schedules and generate pay period bands
             </DialogDescription>
           </DialogHeader>
+
+          {/* Composite Mode Toggle */}
+          <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+            <Switch
+              id="composite-mode"
+              checked={compositeMode}
+              onCheckedChange={setCompositeMode}
+            />
+            <Label htmlFor="composite-mode" className="cursor-pointer flex-1">
+              Compose bands from combined paydays (gap-based)
+            </Label>
+            {compositeMode && (
+              <Badge variant="secondary">Composite Mode</Badge>
+            )}
+          </div>
 
           {/* Top Toolbar */}
           <div className="flex items-center gap-2 border-b pb-3">
@@ -661,6 +772,21 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                   <Trash2 className="w-4 h-4 mr-2" />
                   Delete
                 </Button>
+              </>
+            ) : compositeMode ? (
+              <>
+                <Button variant="outline" onClick={handleGenerateComposite}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Generate Composite
+                </Button>
+                {compositePreviews.length > 0 && (
+                  <Button onClick={handleApplyComposite}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Apply Composite Bands
+                  </Button>
+                )}
+                <div className="flex-1" />
+                <Button onClick={handleSaveAndClose}>Save & Close</Button>
               </>
             ) : (
               <>
@@ -729,90 +855,170 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                           </Button>
                         </div>
                       </div>
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => handleGenerateFromSchedule(schedule)}
-                      >
-                        <Calendar className="w-3 h-3 mr-1" />
-                        Generate & Append
-                      </Button>
+                      {!compositeMode && (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => handleGenerateFromSchedule(schedule)}
+                        >
+                          <Calendar className="w-3 h-3 mr-1" />
+                          Generate & Append
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Bands Table */}
+            {/* Bands Table or Composite Preview */}
             <div className="border rounded-lg overflow-hidden flex flex-col">
-              <div className="p-3 border-b bg-muted/50">
-                <h3 className="font-semibold">Pay Period Bands ({sortedBands.length})</h3>
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                {sortedBands.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    No bands created yet. Create a schedule and generate bands.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[40px]"></TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Start Date</TableHead>
-                        <TableHead>End Date</TableHead>
-                        <TableHead>Display Month</TableHead>
-                        <TableHead>Source</TableHead>
-                        <TableHead className="w-[60px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sortedBands.map((band) => (
-                        <TableRow key={band.id}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedBands.has(band.id)}
-                              onCheckedChange={() => handleToggleBandSelect(band.id)}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium">{band.title}</span>
-                          </TableCell>
-                          <TableCell>
-                            {format(band.startDate, 'MMM d, yyyy')}
-                          </TableCell>
-                          <TableCell>
-                            {format(band.endDate, 'MMM d, yyyy')}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {band.displayMonth 
-                              ? format(new Date(band.displayMonth + '-01'), 'MMM yyyy')
-                              : format(band.endDate, 'MMM yyyy')
-                            }
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {band.sourceScheduleId 
-                              ? schedules.find(s => s.id === band.sourceScheduleId)?.name || 'Deleted'
-                              : 'Manual'
-                            }
-                          </TableCell>
-                          <TableCell>
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              onClick={() => handleOpenBandSettings(band)}
-                              title="Band Settings"
-                            >
-                              <Settings className="w-4 h-4" />
-                            </Button>
-                          </TableCell>
+              {compositeMode && compositePreviews.length > 0 ? (
+                <>
+                  <div className="p-3 border-b bg-muted/50">
+                    <h3 className="font-semibold">Composite Preview ({compositePreviews.length})</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Bands generated from combined paydays • Non-overlapping
+                    </p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Start Date</TableHead>
+                          <TableHead>End Date</TableHead>
+                          <TableHead>Source Paydays</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
+                      </TableHeader>
+                      <TableBody>
+                        {compositePreviews.map((preview, index) => (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <span className="font-medium">{preview.tempTitle}</span>
+                            </TableCell>
+                            <TableCell>
+                              {format(preview.startDate, 'MMM d, yyyy')}
+                            </TableCell>
+                            <TableCell>
+                              {format(preview.endDate, 'MMM d, yyyy')}
+                            </TableCell>
+                            <TableCell className="text-sm">
+                              <div className="flex flex-wrap gap-1">
+                                {preview.sourcePaydays.map((payday, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs">
+                                    {payday.scheduleName}: {payday.type}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-3 border-b bg-muted/50">
+                    <h3 className="font-semibold">Pay Period Bands ({sortedBands.length})</h3>
+                  </div>
+                  <div className="flex-1 overflow-y-auto">
+                    {sortedBands.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        No bands created yet. Create a schedule and generate bands.
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[40px]"></TableHead>
+                            <TableHead>Title</TableHead>
+                            <TableHead>Start Date</TableHead>
+                            <TableHead>End Date</TableHead>
+                            <TableHead>Display Month</TableHead>
+                            <TableHead>Source</TableHead>
+                            <TableHead className="w-[100px]">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sortedBands.map((band) => (
+                            <TableRow key={band.id}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedBands.has(band.id)}
+                                  onCheckedChange={() => handleToggleBandSelect(band.id)}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{band.title}</span>
+                                  {band.locked && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      <Lock className="w-3 h-3" />
+                                    </Badge>
+                                  )}
+                                  {band.compositePaydays && band.compositePaydays.length > 1 && (
+                                    <Badge variant="outline" className="text-xs">
+                                      Composite
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {format(band.startDate, 'MMM d, yyyy')}
+                              </TableCell>
+                              <TableCell>
+                                {format(band.endDate, 'MMM d, yyyy')}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {band.displayMonth 
+                                  ? format(new Date(band.displayMonth + '-01'), 'MMM yyyy')
+                                  : format(band.endDate, 'MMM yyyy')
+                                }
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {band.compositePaydays ? (
+                                  <span className="text-xs">Multiple</span>
+                                ) : band.sourceScheduleId ? (
+                                  schedules.find(s => s.id === band.sourceScheduleId)?.name || 'Deleted'
+                                ) : (
+                                  'Manual'
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    onClick={() => handleToggleLock(band.id)}
+                                    title={band.locked ? "Unlock band" : "Lock band"}
+                                  >
+                                    {band.locked ? (
+                                      <Lock className="w-4 h-4" />
+                                    ) : (
+                                      <Unlock className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    onClick={() => handleOpenBandSettings(band)}
+                                    title="Band Settings"
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </DialogContent>
