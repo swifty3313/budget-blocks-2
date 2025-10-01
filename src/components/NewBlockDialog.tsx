@@ -273,12 +273,12 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
               {!bandInfo && (
                 <div className="space-y-2">
                   <Label htmlFor="payPeriod">Pay Period</Label>
-                  <Select value={selectedBandId} onValueChange={setSelectedBandId}>
+                  <Select value={selectedBandId || "NONE"} onValueChange={(value) => setSelectedBandId(value === "NONE" ? "" : value)}>
                     <SelectTrigger id="payPeriod">
                       <SelectValue placeholder="Select pay period (optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No pay period</SelectItem>
+                      <SelectItem value="NONE">No pay period</SelectItem>
                       {bands.map((band) => (
                         <SelectItem key={band.id} value={band.id}>
                           {band.title} ({format(band.startDate, 'MMM d')} - {format(band.endDate, 'MMM d, yyyy')})
