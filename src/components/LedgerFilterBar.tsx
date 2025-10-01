@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Filter, Search, X, Calendar as CalendarIcon } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, subDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, subDays, addDays } from "date-fns";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +37,6 @@ export function LedgerFilterBar({ filters, onFiltersChange, selectedMonth, onMon
   const bases = useStore((state) => state.bases);
   const owners = useStore((state) => state.owners);
   const [searchInput, setSearchInput] = useState(filters.search);
-  const [isCustomDateRange, setIsCustomDateRange] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -49,29 +48,75 @@ export function LedgerFilterBar({ filters, onFiltersChange, selectedMonth, onMon
 
   const datePresets = useMemo(() => {
     const now = new Date();
-    return {
+    const basePresets = {
       'This month': {
         from: startOfMonth(now),
         to: endOfMonth(now),
       },
-      'Last 30 days': {
-        from: subDays(now, 30),
-        to: now,
-      },
-      'Last 60 days': {
-        from: subDays(now, 60),
-        to: now,
-      },
-      'Last 90 days': {
-        from: subDays(now, 90),
-        to: now,
-      },
     };
-  }, []);
+
+    if (filters.status === 'executed') {
+      return {
+        ...basePresets,
+        'Last 30 days': {
+          from: subDays(now, 30),
+          to: now,
+        },
+        'Last 60 days': {
+          from: subDays(now, 60),
+          to: now,
+        },
+        'Last 90 days': {
+          from: subDays(now, 90),
+          to: now,
+        },
+      };
+    } else if (filters.status === 'planned') {
+      return {
+        ...basePresets,
+        'Next 30 days': {
+          from: now,
+          to: addDays(now, 30),
+        },
+        'Next 60 days': {
+          from: now,
+          to: addDays(now, 60),
+        },
+        'Next 90 days': {
+          from: now,
+          to: addDays(now, 90),
+        },
+      };
+    } else {
+      // Status = 'all', show both past and future
+      return {
+        ...basePresets,
+        'Last 30 days': {
+          from: subDays(now, 30),
+          to: now,
+        },
+        'Last 60 days': {
+          from: subDays(now, 60),
+          to: now,
+        },
+        'Last 90 days': {
+          from: subDays(now, 90),
+          to: now,
+        },
+      };
+    }
+  }, [filters.status]);
 
   const handleDatePreset = (preset: string) => {
     if (preset === 'Custom...') {
-      setIsCustomDateRange(true);
+      // Set to Custom mode with current date range
+      onFiltersChange({
+        ...filters,
+        dateRange: {
+          ...filters.dateRange,
+          preset: 'Custom',
+        },
+      });
       return;
     }
     
@@ -127,7 +172,17 @@ export function LedgerFilterBar({ filters, onFiltersChange, selectedMonth, onMon
   };
 
   const handleStatusChange = (status: 'all' | 'executed' | 'planned') => {
-    onFiltersChange({ ...filters, status });
+    // Reset date preset to "This month" when changing status
+    const now = new Date();
+    onFiltersChange({
+      ...filters,
+      status,
+      dateRange: {
+        from: startOfMonth(now),
+        to: endOfMonth(now),
+        preset: 'This month',
+      },
+    });
   };
 
   const isDefaultFilters = () => {
@@ -205,40 +260,36 @@ export function LedgerFilterBar({ filters, onFiltersChange, selectedMonth, onMon
             </SelectContent>
           </Select>
 
-          {/* Custom Date Range Popover */}
-          {isCustomDateRange && (
-            <Popover open={isCustomDateRange} onOpenChange={setIsCustomDateRange}>
+          {/* Custom Date Range Display/Edit */}
+          {filters.dateRange.preset === 'Custom' && (
+            <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-9">
                   <CalendarIcon className="w-4 h-4 mr-2" />
-                  {filters.dateRange.preset === 'Custom'
-                    ? `${format(filters.dateRange.from, 'MMM d')} - ${format(filters.dateRange.to, 'MMM d')}`
-                    : 'Pick dates'}
+                  {format(filters.dateRange.from, 'MMM d')} - {format(filters.dateRange.to, 'MMM d, yyyy')}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
-                <div className="p-3 space-y-2">
-                  <Label className="text-xs">From</Label>
-                  <Calendar
-                    mode="single"
-                    selected={filters.dateRange.from}
-                    onSelect={(date) => date && handleCustomDateRange(date, filters.dateRange.to)}
-                    className="pointer-events-auto"
-                  />
-                  <Label className="text-xs mt-2">To</Label>
-                  <Calendar
-                    mode="single"
-                    selected={filters.dateRange.to}
-                    onSelect={(date) => date && handleCustomDateRange(filters.dateRange.from, date)}
-                    className="pointer-events-auto"
-                  />
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => setIsCustomDateRange(false)}
-                  >
-                    Done
-                  </Button>
+                <div className="p-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Start Date</Label>
+                    <Calendar
+                      mode="single"
+                      selected={filters.dateRange.from}
+                      onSelect={(date) => date && handleCustomDateRange(date, filters.dateRange.to)}
+                      className={cn("pointer-events-auto")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">End Date</Label>
+                    <Calendar
+                      mode="single"
+                      selected={filters.dateRange.to}
+                      onSelect={(date) => date && handleCustomDateRange(filters.dateRange.from, date)}
+                      disabled={(date) => date < filters.dateRange.from}
+                      className={cn("pointer-events-auto")}
+                    />
+                  </div>
                 </div>
               </PopoverContent>
             </Popover>
