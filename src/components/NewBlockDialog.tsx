@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, Calendar, Pencil } from "lucide-react";
+import { Plus, Trash2, Calendar, Pencil, Info } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
@@ -20,9 +21,12 @@ interface NewBlockDialogProps {
   onOpenChange: (open: boolean) => void;
   bandId?: string; // If opened from within a band
   bandInfo?: { title: string; startDate: Date; endDate: Date }; // Band context
+  initialBasis?: number; // Prefilled allocation basis from Calculator
+  basisSource?: 'calculator'; // Source of the basis value
+  availableToAllocate?: number; // Band's available to allocate value
 }
 
-export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBlockDialogProps) {
+export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBasis, basisSource, availableToAllocate }: NewBlockDialogProps) {
   const bases = useStore((state) => state.bases);
   const bands = useStore((state) => state.bands);
   const library = useStore((state) => state.library);
@@ -43,6 +47,11 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
   const [executeImmediately, setExecuteImmediately] = useState(false);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   
+  // Flow allocation state
+  const [allocationBasis, setAllocationBasis] = useState<number>(0);
+  const [basisMode, setBasisMode] = useState<'manual' | 'band' | 'calculator'>('manual');
+  const [enforceFullAllocation, setEnforceFullAllocation] = useState(false);
+  
   const [rows, setRows] = useState<Row[]>([]);
 
   // Initialize with empty row when dialog opens
@@ -51,13 +60,28 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
       const defaultDate = bandInfo?.startDate || new Date();
       addRow(defaultDate);
     }
-    // Default to templates tab when opened from a band
-    if (open && bandId) {
+    // Default to templates tab when opened from a band, unless coming from Calculator
+    if (open && bandId && !basisSource) {
       setActiveTab("templates");
     } else if (open) {
       setActiveTab("new");
     }
-  }, [open]);
+    
+    // If coming from Calculator, set Flow type and prefill basis
+    if (open && basisSource === 'calculator' && initialBasis !== undefined) {
+      setBlockType('Flow');
+      setAllocationBasis(initialBasis);
+      setBasisMode('calculator');
+      setActiveTab("new");
+    }
+  }, [open, basisSource, initialBasis]);
+  
+  // Update allocation basis when band available changes
+  useEffect(() => {
+    if (basisMode === 'band' && availableToAllocate !== undefined) {
+      setAllocationBasis(availableToAllocate);
+    }
+  }, [basisMode, availableToAllocate]);
 
   // Update selected band when bandId prop changes
   useEffect(() => {
@@ -89,6 +113,8 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
         fromBaseId: lastRow?.fromBaseId,
         toBaseId: lastRow?.toBaseId,
         amount: 0,
+        flowMode: blockType === 'Flow' ? 'Fixed' : undefined,
+        flowValue: 0,
         type: lastRow?.type,
         category: lastRow?.category,
         notes: "",
@@ -151,10 +177,6 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
         toast.error("All rows must have an owner");
         return;
       }
-      if (row.amount <= 0) {
-        toast.error("All rows must have a valid amount");
-        return;
-      }
       
       // Type-specific validation
       if (blockType === 'Income' && !row.toBaseId) {
@@ -164,6 +186,10 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
       if (blockType === 'Fixed Bill') {
         if (!row.fromBaseId) {
           toast.error("Fixed Bill rows must have a source (From Base)");
+          return;
+        }
+        if (row.amount <= 0) {
+          toast.error("All rows must have a valid amount");
           return;
         }
       }
@@ -180,6 +206,39 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
           toast.error("Flow rows must have a category");
           return;
         }
+        // Flow-specific validation
+        const hasPercentRows = rows.some(r => r.flowMode === '%');
+        if (hasPercentRows && !allocationBasis) {
+          toast.error("Allocation Basis is required when using % rows");
+          return;
+        }
+        if (!row.flowValue || row.flowValue <= 0) {
+          toast.error("All Flow rows must have a valid Mode value");
+          return;
+        }
+        // Calculate amount for validation
+        const calculatedAmount = row.flowMode === '%' 
+          ? (row.flowValue / 100) * allocationBasis 
+          : row.flowValue;
+        if (calculatedAmount <= 0) {
+          toast.error("All calculated amounts must be positive");
+          return;
+        }
+      } else {
+        // Non-flow blocks need amount validation
+        if (row.amount <= 0) {
+          toast.error("All rows must have a valid amount");
+          return;
+        }
+      }
+    }
+    
+    // Enforce full allocation if enabled
+    if (blockType === 'Flow' && enforceFullAllocation) {
+      const totalAllocated = rows.reduce((sum, r) => sum + r.amount, 0);
+      if (Math.abs(totalAllocated - allocationBasis) > 0.01) {
+        toast.error(`Allocated (${formatCurrency(totalAllocated)}) must equal Basis (${formatCurrency(allocationBasis)})`);
+        return;
       }
     }
 
@@ -241,6 +300,9 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
     setBlockType("Income");
     setActiveTab("new");
     setEditingTemplateId(null);
+    setAllocationBasis(0);
+    setBasisMode('manual');
+    setEnforceFullAllocation(false);
   };
 
   const handleInsertTemplate = (template: any) => {
@@ -287,6 +349,24 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
   };
 
   const total = rows.reduce((sum, r) => sum + r.amount, 0);
+  
+  // Calculate Flow allocation summary
+  const allocatedAmount = blockType === 'Flow' ? rows.reduce((sum, r) => sum + r.amount, 0) : 0;
+  const remainingAmount = allocationBasis - allocatedAmount;
+  
+  // Recalculate amounts when flow values change
+  useEffect(() => {
+    if (blockType === 'Flow') {
+      setRows(prevRows => prevRows.map(row => {
+        if (row.flowMode === '%' && row.flowValue && allocationBasis) {
+          return { ...row, amount: (row.flowValue / 100) * allocationBasis };
+        } else if (row.flowMode === 'Fixed' && row.flowValue) {
+          return { ...row, amount: row.flowValue };
+        }
+        return row;
+      }));
+    }
+  }, [allocationBasis, blockType]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -326,6 +406,140 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
                 ))}
               </div>
             </div>
+
+            {/* Flow Header Overview */}
+            {blockType === 'Flow' && (
+              <div className="p-4 border rounded-lg bg-accent/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-sm">Flow Allocation Overview</h4>
+                  {basisSource === 'calculator' && (
+                    <Badge variant="outline" className="text-xs">
+                      Basis from Calculator
+                    </Badge>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-4 gap-3">
+                  {/* Available to Allocate */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs text-muted-foreground">Available to Allocate</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Band's Expected Income − Expected Fixed</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="px-3 py-2 rounded-md bg-muted/30 border text-sm font-medium">
+                      {availableToAllocate !== undefined ? formatCurrency(availableToAllocate) : 'N/A'}
+                    </div>
+                  </div>
+
+                  {/* Allocation Basis */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs text-muted-foreground">Allocation Basis</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Used to calculate % rows</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="flex gap-1">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={allocationBasis || ""}
+                        onChange={(e) => {
+                          setAllocationBasis(parseFloat(e.target.value) || 0);
+                          setBasisMode('manual');
+                        }}
+                        className="text-sm font-medium"
+                      />
+                      <Select value={basisMode} onValueChange={(v) => {
+                        setBasisMode(v as any);
+                        if (v === 'band' && availableToAllocate !== undefined) {
+                          setAllocationBasis(availableToAllocate);
+                        }
+                      }}>
+                        <SelectTrigger className="w-24 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="manual">Manual</SelectItem>
+                          <SelectItem value="band">Band Avail</SelectItem>
+                          <SelectItem value="calculator">Calculator</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Allocated */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs text-muted-foreground">Allocated</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Sum of all row amounts</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="px-3 py-2 rounded-md bg-muted/30 border text-sm font-medium">
+                      {formatCurrency(allocatedAmount)}
+                    </div>
+                  </div>
+
+                  {/* Remaining */}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Label className="text-xs text-muted-foreground">Remaining</Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Basis − Allocated</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className={`px-3 py-2 rounded-md border text-sm font-medium ${
+                      remainingAmount < 0 ? 'bg-warning/10 text-warning border-warning/20' : 'bg-muted/30'
+                    }`}>
+                      {formatCurrency(remainingAmount)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Enforce Full Allocation */}
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="enforceFullAllocation"
+                    checked={enforceFullAllocation}
+                    onCheckedChange={(checked) => setEnforceFullAllocation(checked as boolean)}
+                  />
+                  <Label htmlFor="enforceFullAllocation" className="text-xs cursor-pointer">
+                    Enforce full allocation (Allocated must equal Basis)
+                  </Label>
+                </div>
+              </div>
+            )}
 
             {/* Block-level Fields */}
             <div className="grid md:grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/30">
@@ -425,7 +639,11 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
                         </th>
                       )}
                       {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">To Base</th>}
-                      <th className="text-left p-2 font-medium text-xs">Amount *</th>
+                      {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">Mode *</th>}
+                      {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">Value *</th>}
+                      <th className="text-left p-2 font-medium text-xs">
+                        {blockType === 'Flow' ? '$ Amount' : 'Amount *'}
+                      </th>
                       {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">Type *</th>}
                       <th className="text-left p-2 font-medium text-xs">
                         Category {blockType === 'Flow' ? '*' : ''}
@@ -525,15 +743,66 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
                           </td>
                         )}
 
+                        {/* Mode & Value (Flow only) */}
+                        {blockType === 'Flow' && (
+                          <>
+                            <td className="p-2">
+                              <Select
+                                value={row.flowMode || 'Fixed'}
+                                onValueChange={(value: 'Fixed' | '%') => {
+                                  updateRow(row.id, { flowMode: value });
+                                  // Recalculate amount based on new mode
+                                  const newAmount = value === '%' && row.flowValue 
+                                    ? (row.flowValue / 100) * allocationBasis 
+                                    : row.flowValue || 0;
+                                  updateRow(row.id, { amount: newAmount });
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-20">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Fixed">Fixed</SelectItem>
+                                  <SelectItem value="%">%</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </td>
+                            <td className="p-2">
+                              <Input
+                                type="number"
+                                step={row.flowMode === '%' ? '0.1' : '0.01'}
+                                value={row.flowValue || ""}
+                                onChange={(e) => {
+                                  const value = parseFloat(e.target.value) || 0;
+                                  updateRow(row.id, { flowValue: value });
+                                  // Recalculate amount
+                                  const newAmount = row.flowMode === '%' 
+                                    ? (value / 100) * allocationBasis 
+                                    : value;
+                                  updateRow(row.id, { amount: newAmount });
+                                }}
+                                placeholder={row.flowMode === '%' ? "0.0" : "0.00"}
+                                className="h-8 text-xs w-20"
+                              />
+                            </td>
+                          </>
+                        )}
+
                         {/* Amount */}
                         <td className="p-2">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={row.amount || ""}
-                            onChange={(e) => updateRow(row.id, { amount: parseFloat(e.target.value) || 0 })}
-                            className="h-8 text-xs w-24"
-                          />
+                          {blockType === 'Flow' ? (
+                            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                              {formatCurrency(row.amount || 0)}
+                            </div>
+                          ) : (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={row.amount || ""}
+                              onChange={(e) => updateRow(row.id, { amount: parseFloat(e.target.value) || 0 })}
+                              className="h-8 text-xs w-24"
+                            />
+                          )}
                         </td>
 
                         {/* Flow Type (Flow only) */}

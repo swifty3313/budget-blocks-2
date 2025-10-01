@@ -35,7 +35,15 @@ const calculateBlockTotal = (rows: any[]): number => {
   return rows.reduce((sum, row) => sum + row.amount, 0);
 };
 
-export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: string, bandInfo: { title: string; startDate: Date; endDate: Date }) => void }) {
+export function LedgerPanel({ onNewBlockInBand }: { 
+  onNewBlockInBand?: (
+    bandId: string, 
+    bandInfo: { title: string; startDate: Date; endDate: Date },
+    initialBasis?: number,
+    basisSource?: 'calculator',
+    availableToAllocate?: number
+  ) => void 
+}) {
   const bands = useStore((state) => state.bands);
   const blocks = useStore((state) => state.blocks);
   const deleteBlock = useStore((state) => state.deleteBlock);
@@ -238,13 +246,17 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
                           bandId={summary.bandId}
                           bandTitle={summary.title}
                           onUseAsBasis={(result) => {
-                            // For now, just open the New Block dialog
-                            // Task 4 will implement the allocation basis prefill
-                            onNewBlockInBand(summary.bandId, {
-                              title: summary.title,
-                              startDate: summary.startDate,
-                              endDate: summary.endDate,
-                            });
+                            onNewBlockInBand(
+                              summary.bandId, 
+                              {
+                                title: summary.title,
+                                startDate: summary.startDate,
+                                endDate: summary.endDate,
+                              },
+                              result,
+                              'calculator',
+                              summary.availableToAllocate
+                            );
                           }}
                         />
                       </div>

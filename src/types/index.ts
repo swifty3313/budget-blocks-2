@@ -34,6 +34,8 @@ export interface Row {
   fromBaseId?: string;
   toBaseId?: string;
   amount: number;
+  flowMode?: 'Fixed' | '%'; // For Flow blocks: Fixed dollar amount or percentage
+  flowValue?: number; // For Flow blocks: the actual value (dollar or percentage)
   type?: FlowRowType; // For Flow blocks only (Transfer, Payment, Expense, Reimbursement)
   category?: string;
   notes?: string;

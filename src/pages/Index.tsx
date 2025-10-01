@@ -12,6 +12,9 @@ const Index = () => {
   const [newBlockOpen, setNewBlockOpen] = useState(false);
   const [newBlockBandId, setNewBlockBandId] = useState<string | undefined>();
   const [newBlockBandInfo, setNewBlockBandInfo] = useState<{ title: string; startDate: Date; endDate: Date } | undefined>();
+  const [newBlockInitialBasis, setNewBlockInitialBasis] = useState<number | undefined>();
+  const [newBlockBasisSource, setNewBlockBasisSource] = useState<'calculator' | undefined>();
+  const [newBlockAvailableToAllocate, setNewBlockAvailableToAllocate] = useState<number | undefined>();
   const [managePeriodsOpen, setManagePeriodsOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
 
@@ -25,9 +28,12 @@ const Index = () => {
     }
   }, []);
 
-  const handleNewBlock = (bandId?: string, bandInfo?: { title: string; startDate: Date; endDate: Date }) => {
+  const handleNewBlock = (bandId?: string, bandInfo?: { title: string; startDate: Date; endDate: Date }, initialBasis?: number, basisSource?: 'calculator', availableToAllocate?: number) => {
     setNewBlockBandId(bandId);
     setNewBlockBandInfo(bandInfo);
+    setNewBlockInitialBasis(initialBasis);
+    setNewBlockBasisSource(basisSource);
+    setNewBlockAvailableToAllocate(availableToAllocate);
     setNewBlockOpen(true);
   };
 
@@ -36,6 +42,9 @@ const Index = () => {
     if (!open) {
       setNewBlockBandId(undefined);
       setNewBlockBandInfo(undefined);
+      setNewBlockInitialBasis(undefined);
+      setNewBlockBasisSource(undefined);
+      setNewBlockAvailableToAllocate(undefined);
     }
   };
 
@@ -65,6 +74,9 @@ const Index = () => {
         onOpenChange={handleNewBlockClose}
         bandId={newBlockBandId}
         bandInfo={newBlockBandInfo}
+        initialBasis={newBlockInitialBasis}
+        basisSource={newBlockBasisSource}
+        availableToAllocate={newBlockAvailableToAllocate}
       />
     </div>
   );
