@@ -1,10 +1,12 @@
 import { useState, useMemo } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useStore } from "@/lib/store";
 import { Plus, Trash2, AlertTriangle, GripVertical } from "lucide-react";
 import { toast } from "sonner";
@@ -36,11 +38,13 @@ interface ManageBasesDialogProps {
 interface SortableBaseItemProps {
   base: Base;
   isEditing: boolean;
+  isSelected: boolean;
   onEdit: (base: Base) => void;
   onDelete: (id: string) => void;
+  onToggleSelect: (id: string) => void;
 }
 
-function SortableBaseItem({ base, isEditing, onEdit, onDelete }: SortableBaseItemProps) {
+function SortableBaseItem({ base, isEditing, isSelected, onEdit, onDelete, onToggleSelect }: SortableBaseItemProps) {
   const {
     attributes,
     listeners,
@@ -62,9 +66,14 @@ function SortableBaseItem({ base, isEditing, onEdit, onDelete }: SortableBaseIte
       style={style}
       className={`p-3 border rounded-lg hover:bg-muted/50 transition-colors ${
         isEditing ? 'ring-2 ring-primary' : ''
-      }`}
+      } ${isSelected ? 'bg-muted' : ''}`}
     >
       <div className="flex items-start gap-2">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onToggleSelect(base.id)}
+          className="mt-1"
+        />
         <button
           className="touch-none cursor-grab active:cursor-grabbing mt-1 p-1 hover:bg-muted rounded"
           {...attributes}
@@ -113,6 +122,7 @@ function SortableBaseItem({ base, isEditing, onEdit, onDelete }: SortableBaseIte
 
 export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps) {
   const bases = useStore((state) => state.bases);
+  const blocks = useStore((state) => state.blocks);
   const baseTypes = useStore((state) => state.baseTypes);
   const institutions = useStore((state) => state.institutions);
   const groupBasesByType = useStore((state) => state.groupBasesByType);
@@ -135,6 +145,12 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
     tagColor: "",
   });
   const [customColor, setCustomColor] = useState("");
+  const [selectedBases, setSelectedBases] = useState<Set<string>>(new Set());
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteResults, setDeleteResults] = useState<{
+    deletable: Base[];
+    blocked: Array<{ base: Base; rowCount: number; blockCount: number }>;
+  } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -290,15 +306,111 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
     }
   };
 
+  const handleToggleSelect = (id: string) => {
+    setSelectedBases(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllInGroup = (groupBases: Base[]) => {
+    setSelectedBases(prev => {
+      const next = new Set(prev);
+      groupBases.forEach(base => next.add(base.id));
+      return next;
+    });
+  };
+
+  const handleBulkDelete = () => {
+    // Precheck: which bases are referenced?
+    const basesToDelete = bases.filter(b => selectedBases.has(b.id));
+    const deletable: Base[] = [];
+    const blocked: Array<{ base: Base; rowCount: number; blockCount: number }> = [];
+
+    basesToDelete.forEach(base => {
+      // Check if any rows reference this base
+      let rowCount = 0;
+      const blockIds = new Set<string>();
+      
+      blocks.forEach(block => {
+        block.rows.forEach(row => {
+          if (row.fromBaseId === base.id || row.toBaseId === base.id) {
+            rowCount++;
+            blockIds.add(block.id);
+          }
+        });
+      });
+
+      if (rowCount > 0) {
+        blocked.push({ base, rowCount, blockCount: blockIds.size });
+      } else {
+        deletable.push(base);
+      }
+    });
+
+    setDeleteResults({ deletable, blocked });
+    setShowDeleteDialog(true);
+  };
+
+  const handleConfirmBulkDelete = () => {
+    if (!deleteResults) return;
+
+    deleteResults.deletable.forEach(base => {
+      deleteBase(base.id);
+    });
+
+    const deletedCount = deleteResults.deletable.length;
+    const blockedCount = deleteResults.blocked.length;
+
+    if (deletedCount > 0) {
+      toast.success(`Deleted ${deletedCount} base(s)${blockedCount > 0 ? `. ${blockedCount} blocked.` : ''}`);
+    } else if (blockedCount > 0) {
+      toast.info(`No bases deleted. ${blockedCount} blocked by references.`);
+    }
+
+    setSelectedBases(new Set());
+    setShowDeleteDialog(false);
+    setDeleteResults(null);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Manage Bases</DialogTitle>
-          <DialogDescription>
-            Create and manage your financial accounts
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Manage Bases</DialogTitle>
+            <DialogDescription>
+              Create and manage your financial accounts
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Bulk Actions Bar */}
+          {selectedBases.size > 0 && (
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg border">
+              <span className="text-sm font-medium">{selectedBases.size} selected</span>
+              <div className="flex-1" />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedBases(new Set())}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+            </div>
+          )}
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Form */}
@@ -486,6 +598,23 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
               </div>
             </div>
 
+            {selectedBases.size === 0 && groupBasesByType && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  const allIds = new Set<string>();
+                  Object.values(groupedBases).forEach(group => {
+                    group.forEach(base => allIds.add(base.id));
+                  });
+                  setSelectedBases(allIds);
+                }}
+              >
+                Select All
+              </Button>
+            )}
+
             <div className="space-y-4 max-h-[500px] overflow-y-auto">
               {bases.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">
@@ -495,9 +624,20 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
                 Object.entries(groupedBases).map(([groupType, groupBases]) => (
                   <div key={groupType} className="space-y-2">
                     {groupBasesByType && (
-                      <h4 className="text-sm font-medium text-muted-foreground px-2">
-                        {groupType}
-                      </h4>
+                      <div className="flex items-center justify-between px-2">
+                        <h4 className="text-sm font-medium text-muted-foreground">
+                          {groupType}
+                        </h4>
+                        {selectedBases.size === 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSelectAllInGroup(groupBases)}
+                          >
+                            Select all in group
+                          </Button>
+                        )}
+                      </div>
                     )}
                     <DndContext
                       sensors={sensors}
@@ -514,8 +654,10 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
                               key={base.id}
                               base={base}
                               isEditing={editingId === base.id}
+                              isSelected={selectedBases.has(base.id)}
                               onEdit={handleEdit}
                               onDelete={handleDelete}
+                              onToggleSelect={handleToggleSelect}
                             />
                           ))}
                         </div>
@@ -529,5 +671,67 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Delete Results Dialog */}
+    <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+      <AlertDialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Bulk Delete Results</AlertDialogTitle>
+          <AlertDialogDescription>
+            Review which bases can be deleted
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+
+        {deleteResults && (
+          <div className="space-y-4">
+            {deleteResults.deletable.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-semibold text-success">Deletable ({deleteResults.deletable.length})</h4>
+                <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                  {deleteResults.deletable.map(base => (
+                    <div key={base.id} className="p-2 border rounded text-sm">
+                      <span className="font-medium">{base.name}</span>
+                      <span className="text-muted-foreground ml-2">({base.type})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {deleteResults.blocked.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-semibold text-destructive">Blocked ({deleteResults.blocked.length})</h4>
+                <p className="text-sm text-muted-foreground">
+                  These bases cannot be deleted because they are referenced by rows
+                </p>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {deleteResults.blocked.map(({ base, rowCount, blockCount }) => (
+                    <div key={base.id} className="p-3 border rounded space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{base.name}</span>
+                        <span className="text-muted-foreground text-xs">({base.type})</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Referenced by {rowCount} row(s) in {blockCount} block(s)
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          {deleteResults && deleteResults.deletable.length > 0 && (
+            <Button variant="destructive" onClick={handleConfirmBulkDelete}>
+              Delete {deleteResults.deletable.length} Base(s)
+            </Button>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   );
 }

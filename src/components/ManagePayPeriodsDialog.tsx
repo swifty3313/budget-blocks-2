@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,8 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, Calendar, RefreshCw, Edit2, Copy, AlertTriangle } from "lucide-react";
+import { Plus, Trash2, Calendar, RefreshCw, Edit2, Copy, AlertTriangle, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { format, addWeeks, addMonths, addDays, startOfMonth, endOfMonth, lastDayOfMonth, setDate } from "date-fns";
 import type { PayPeriodBand, PaySchedule } from "@/types";
@@ -52,10 +54,13 @@ const getDayOfMonth = (year: number, month: number, day: number | 'Last'): Date 
 
 export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsDialogProps) {
   const bands = useStore((state) => state.bands);
+  const blocks = useStore((state) => state.blocks);
   const schedules = useStore((state) => state.schedules);
   const addBand = useStore((state) => state.addBand);
   const updateBand = useStore((state) => state.updateBand);
   const deleteBand = useStore((state) => state.deleteBand);
+  const deleteBlock = useStore((state) => state.deleteBlock);
+  const moveBlockToBand = useStore((state) => state.moveBlockToBand);
   const addSchedule = useStore((state) => state.addSchedule);
   const updateSchedule = useStore((state) => state.updateSchedule);
   const deleteSchedule = useStore((state) => state.deleteSchedule);
@@ -65,6 +70,19 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
   const [editingTitle, setEditingTitle] = useState("");
   const [editingStartDate, setEditingStartDate] = useState("");
   const [editingEndDate, setEditingEndDate] = useState("");
+
+  // Band Settings modal
+  const [bandSettingsId, setBandSettingsId] = useState<string | null>(null);
+  const [bandSettingsTitle, setBandSettingsTitle] = useState("");
+  const [bandSettingsStartDate, setBandSettingsStartDate] = useState("");
+  const [bandSettingsEndDate, setBandSettingsEndDate] = useState("");
+
+  // Bulk selection
+  const [selectedBands, setSelectedBands] = useState<Set<string>>(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [bulkDeleteAction, setBulkDeleteAction] = useState<'move' | 'delete'>('move');
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
+  const [bandsWithBlocks, setBandsWithBlocks] = useState<Array<{ bandId: string; blockCount: number; hasExecuted: boolean }>>([]);
 
   // Schedule form state
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
@@ -453,6 +471,172 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
     onOpenChange(false);
   };
 
+  const handleToggleBandSelect = (bandId: string) => {
+    setSelectedBands(prev => {
+      const next = new Set(prev);
+      if (next.has(bandId)) {
+        next.delete(bandId);
+      } else {
+        next.add(bandId);
+      }
+      return next;
+    });
+  };
+
+  const handleBulkDelete = () => {
+    // Check which selected bands have blocks
+    const bandsInfo = Array.from(selectedBands).map(bandId => {
+      const bandBlocks = blocks.filter(b => b.bandId === bandId);
+      const hasExecuted = bandBlocks.some(b => b.rows.some(r => r.executed));
+      return {
+        bandId,
+        blockCount: bandBlocks.length,
+        hasExecuted,
+      };
+    });
+
+    const bandsWithBlocksData = bandsInfo.filter(b => b.blockCount > 0);
+    setBandsWithBlocks(bandsWithBlocksData);
+    
+    if (bandsWithBlocksData.length > 0) {
+      setShowBulkDeleteDialog(true);
+    } else {
+      // No blocks, just delete
+      handleConfirmBulkDelete('move');
+    }
+  };
+
+  const handleConfirmBulkDelete = (action: 'move' | 'delete') => {
+    const requiresDoubleConfirm = bandsWithBlocks.some(b => b.hasExecuted) && action === 'delete';
+    
+    if (requiresDoubleConfirm && bulkDeleteConfirmText !== 'DELETE') {
+      toast.error('Please type DELETE to confirm');
+      return;
+    }
+
+    // Process deletion
+    Array.from(selectedBands).forEach(bandId => {
+      const bandBlocks = blocks.filter(b => b.bandId === bandId);
+      
+      if (action === 'move') {
+        // Move blocks to unassigned
+        bandBlocks.forEach(block => {
+          moveBlockToBand(block.id, undefined as any);
+        });
+      } else {
+        // Delete blocks
+        bandBlocks.forEach(block => {
+          deleteBlock(block.id);
+        });
+      }
+      
+      // Delete band
+      deleteBand(bandId);
+    });
+
+    const deletedCount = selectedBands.size;
+    const movedCount = action === 'move' ? bandsWithBlocks.reduce((sum, b) => sum + b.blockCount, 0) : 0;
+    const deletedBlockCount = action === 'delete' ? bandsWithBlocks.reduce((sum, b) => sum + b.blockCount, 0) : 0;
+
+    if (action === 'move' && movedCount > 0) {
+      toast.success(`Deleted ${deletedCount} band(s). ${movedCount} block(s) moved to Unassigned.`);
+    } else if (action === 'delete' && deletedBlockCount > 0) {
+      toast.success(`Deleted ${deletedCount} band(s) and ${deletedBlockCount} block(s).`);
+    } else {
+      toast.success(`Deleted ${deletedCount} band(s).`);
+    }
+
+    // Reset state
+    setSelectedBands(new Set());
+    setShowBulkDeleteDialog(false);
+    setBulkDeleteAction('move');
+    setBulkDeleteConfirmText("");
+    setBandsWithBlocks([]);
+
+    // Recompute
+    const count = reassignBlocksToBands();
+    if (count > 0) {
+      toast.info(`${count} block(s) reassigned to bands`);
+    }
+  };
+
+  const handleOpenBandSettings = (band: PayPeriodBand) => {
+    setBandSettingsId(band.id);
+    setBandSettingsTitle(band.title);
+    setBandSettingsStartDate(format(band.startDate, 'yyyy-MM-dd'));
+    setBandSettingsEndDate(format(band.endDate, 'yyyy-MM-dd'));
+  };
+
+  const handleSaveBandSettings = () => {
+    if (!bandSettingsId) return;
+
+    if (!bandSettingsTitle.trim() || !bandSettingsStartDate || !bandSettingsEndDate) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    const start = new Date(bandSettingsStartDate);
+    const end = new Date(bandSettingsEndDate);
+
+    if (start >= end) {
+      toast.error("End date must be after start date");
+      return;
+    }
+
+    const currentBand = bands.find(b => b.id === bandSettingsId);
+    const rule = currentBand?.attributionRule || 'end-month';
+    
+    const updatedBand: Partial<PayPeriodBand> = {
+      title: bandSettingsTitle.trim(),
+      startDate: start,
+      endDate: end,
+    };
+    
+    // Recalculate display month
+    updatedBand.displayMonth = calculateDisplayMonth(
+      { ...currentBand!, ...updatedBand } as PayPeriodBand,
+      rule
+    );
+
+    updateBand(bandSettingsId, updatedBand);
+
+    setBandSettingsId(null);
+    toast.success("Band updated");
+
+    // Check if display month changed
+    if (currentBand && currentBand.displayMonth !== updatedBand.displayMonth) {
+      toast.info(`Band moved to ${format(new Date(updatedBand.displayMonth + '-01'), 'MMMM yyyy')} per attribution rule`);
+    }
+
+    // Reassign blocks
+    const count = reassignBlocksToBands();
+    if (count > 0) {
+      toast.info(`${count} block(s) reassigned to new bands`);
+    }
+  };
+
+  const handleDeleteFromSettings = () => {
+    if (!bandSettingsId) return;
+
+    const bandBlocks = blocks.filter(b => b.bandId === bandSettingsId);
+    const hasExecuted = bandBlocks.some(b => b.rows.some(r => r.executed));
+
+    if (bandBlocks.length > 0) {
+      // Show block handling dialog
+      setBandsWithBlocks([{ bandId: bandSettingsId, blockCount: bandBlocks.length, hasExecuted }]);
+      setSelectedBands(new Set([bandSettingsId]));
+      setBandSettingsId(null);
+      setShowBulkDeleteDialog(true);
+    } else {
+      // No blocks, just delete
+      if (confirm("Delete this band?")) {
+        deleteBand(bandSettingsId);
+        toast.success("Band deleted");
+        setBandSettingsId(null);
+      }
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -466,18 +650,34 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
 
           {/* Top Toolbar */}
           <div className="flex items-center gap-2 border-b pb-3">
-            <Button variant="outline" onClick={handleMonthlyRenumber}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Monthly Renumber
-            </Button>
-            {overlaps.length > 0 && (
-              <Button variant="outline" onClick={() => setShowOverlapDialog(true)}>
-                <AlertTriangle className="w-4 h-4 mr-2 text-yellow-600" />
-                {overlaps.length} Overlap(s)
-              </Button>
+            {selectedBands.size > 0 ? (
+              <>
+                <span className="text-sm font-medium">{selectedBands.size} selected</span>
+                <div className="flex-1" />
+                <Button variant="outline" size="sm" onClick={() => setSelectedBands(new Set())}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={handleMonthlyRenumber}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Monthly Renumber
+                </Button>
+                {overlaps.length > 0 && (
+                  <Button variant="outline" onClick={() => setShowOverlapDialog(true)}>
+                    <AlertTriangle className="w-4 h-4 mr-2 text-yellow-600" />
+                    {overlaps.length} Overlap(s)
+                  </Button>
+                )}
+                <div className="flex-1" />
+                <Button onClick={handleSaveAndClose}>Save & Close</Button>
+              </>
             )}
-            <div className="flex-1" />
-            <Button onClick={handleSaveAndClose}>Save & Close</Button>
           </div>
 
           {/* Main Content */}
@@ -558,51 +758,32 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[40px]"></TableHead>
                         <TableHead>Title</TableHead>
                         <TableHead>Start Date</TableHead>
                         <TableHead>End Date</TableHead>
                         <TableHead>Display Month</TableHead>
                         <TableHead>Source</TableHead>
-                        <TableHead className="w-[100px]">Actions</TableHead>
+                        <TableHead className="w-[60px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {sortedBands.map((band) => (
                         <TableRow key={band.id}>
                           <TableCell>
-                            {editingBandId === band.id ? (
-                              <Input
-                                value={editingTitle}
-                                onChange={(e) => setEditingTitle(e.target.value)}
-                                className="h-8"
-                              />
-                            ) : (
-                              <span className="font-medium">{band.title}</span>
-                            )}
+                            <Checkbox
+                              checked={selectedBands.has(band.id)}
+                              onCheckedChange={() => handleToggleBandSelect(band.id)}
+                            />
                           </TableCell>
                           <TableCell>
-                            {editingBandId === band.id ? (
-                              <Input
-                                type="date"
-                                value={editingStartDate}
-                                onChange={(e) => setEditingStartDate(e.target.value)}
-                                className="h-8"
-                              />
-                            ) : (
-                              format(band.startDate, 'MMM d, yyyy')
-                            )}
+                            <span className="font-medium">{band.title}</span>
                           </TableCell>
                           <TableCell>
-                            {editingBandId === band.id ? (
-                              <Input
-                                type="date"
-                                value={editingEndDate}
-                                onChange={(e) => setEditingEndDate(e.target.value)}
-                                className="h-8"
-                              />
-                            ) : (
-                              format(band.endDate, 'MMM d, yyyy')
-                            )}
+                            {format(band.startDate, 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell>
+                            {format(band.endDate, 'MMM d, yyyy')}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {band.displayMonth 
@@ -617,30 +798,14 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                             }
                           </TableCell>
                           <TableCell>
-                            {editingBandId === band.id ? (
-                              <div className="flex gap-1">
-                                <Button size="sm" variant="outline" onClick={handleSaveEditBand}>
-                                  Save
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={() => setEditingBandId(null)}>
-                                  Cancel
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="flex gap-1">
-                                <Button size="sm" variant="ghost" onClick={() => handleStartEditBand(band)}>
-                                  <Edit2 className="w-3 h-3" />
-                                </Button>
-                                <Button size="sm" variant="ghost" onClick={() => {
-                                  if (confirm("Delete this band? Blocks will be unassigned.")) {
-                                    deleteBand(band.id);
-                                    toast.success("Band deleted");
-                                  }
-                                }}>
-                                  <Trash2 className="w-3 h-3 text-destructive" />
-                                </Button>
-                              </div>
-                            )}
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              onClick={() => handleOpenBandSettings(band)}
+                              title="Band Settings"
+                            >
+                              <Settings className="w-4 h-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -652,6 +817,137 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Band Settings Dialog */}
+      <Dialog open={bandSettingsId !== null} onOpenChange={(open) => !open && setBandSettingsId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Band Settings</DialogTitle>
+            <DialogDescription>
+              Edit band details or delete the band
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="band-title">Title *</Label>
+              <Input
+                id="band-title"
+                value={bandSettingsTitle}
+                onChange={(e) => setBandSettingsTitle(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="band-start">Start Date *</Label>
+              <Input
+                id="band-start"
+                type="date"
+                value={bandSettingsStartDate}
+                onChange={(e) => setBandSettingsStartDate(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="band-end">End Date *</Label>
+              <Input
+                id="band-end"
+                type="date"
+                value={bandSettingsEndDate}
+                onChange={(e) => setBandSettingsEndDate(e.target.value)}
+              />
+            </div>
+
+            <div className="pt-4 border-t">
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={handleDeleteFromSettings}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Band
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBandSettingsId(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveBandSettings}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Bands with Blocks</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bandsWithBlocks.length > 0 && (
+                <>
+                  {selectedBands.size === 1 ? 'This band contains' : 'These bands contain'}{' '}
+                  {bandsWithBlocks.reduce((sum, b) => sum + b.blockCount, 0)} block(s).
+                  Choose an action:
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-4">
+            <RadioGroup value={bulkDeleteAction} onValueChange={(v) => setBulkDeleteAction(v as 'move' | 'delete')}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="move" id="move" />
+                <Label htmlFor="move" className="font-normal cursor-pointer">
+                  Move blocks to "Unassigned" (recommended)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="delete" id="delete" />
+                <Label htmlFor="delete" className="font-normal cursor-pointer text-destructive">
+                  Delete blocks too (danger)
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {bulkDeleteAction === 'delete' && bandsWithBlocks.some(b => b.hasExecuted) && (
+              <div className="space-y-2 p-3 bg-destructive/10 border border-destructive/20 rounded">
+                <p className="text-sm font-medium text-destructive">
+                  Warning: Some blocks have executed rows
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Type <strong>DELETE</strong> to confirm deletion
+                </p>
+                <Input
+                  value={bulkDeleteConfirmText}
+                  onChange={(e) => setBulkDeleteConfirmText(e.target.value)}
+                  placeholder="Type DELETE"
+                />
+              </div>
+            )}
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowBulkDeleteDialog(false);
+              setBulkDeleteAction('move');
+              setBulkDeleteConfirmText("");
+              setSelectedBands(new Set());
+            }}>
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={() => handleConfirmBulkDelete(bulkDeleteAction)}
+            >
+              Confirm
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Schedule Dialog */}
       <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>

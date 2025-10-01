@@ -8,8 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
-import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Archive, ArchiveRestore, Plus, Calculator } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Archive, ArchiveRestore, Plus } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
@@ -390,26 +389,6 @@ export function LedgerPanel({
         <h2 className="text-2xl font-bold">Ledger</h2>
         
         <div className="flex items-center gap-2">
-          {/* Calculator - disabled when no bands */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    disabled={!hasBandsInSystem}
-                  >
-                    <Calculator className="w-4 h-4" />
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{hasBandsInSystem ? "Calculator" : "Open from a pay period"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
           {/* Pay Periods - always enabled */}
           {onManagePeriods && (
             <Button variant="outline" size="sm" onClick={onManagePeriods}>
