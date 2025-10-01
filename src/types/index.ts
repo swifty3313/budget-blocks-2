@@ -22,6 +22,7 @@ export interface Base {
   currency: string;
   tags: string[];
   tagColor?: string; // Hex color for balance display
+  sortOrder?: number; // Manual sort order
   createdAt: Date;
   updatedAt: Date;
 }
@@ -94,10 +95,15 @@ export interface AppState {
   baseTypes: BaseType[];
   flowTypes: FlowRowType[];
   
+  // UI State
+  groupBasesByType: boolean;
+  
   // Actions
   addBase: (base: Omit<Base, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateBase: (id: string, updates: Partial<Base>) => void;
   deleteBase: (id: string) => void;
+  reorderBases: (baseIds: string[]) => void;
+  toggleGroupByType: () => void;
   
   addBlock: (block: Omit<Block, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateBlock: (id: string, updates: Partial<Block>) => void;

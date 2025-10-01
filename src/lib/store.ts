@@ -27,6 +27,7 @@ export const useStore = create<AppState>()(
       institutions: [],
       baseTypes: ['Checking', 'Savings', 'Credit', 'Loan', 'Vault', 'Goal'],
       flowTypes: ['Transfer', 'Payment', 'Expense', 'Reimbursement'],
+      groupBasesByType: false,
 
       // Base actions
       addBase: (base) => {
@@ -49,6 +50,19 @@ export const useStore = create<AppState>()(
 
       deleteBase: (id) => {
         set((state) => ({ bases: state.bases.filter((b) => b.id !== id) }));
+      },
+
+      reorderBases: (baseIds) => {
+        set((state) => ({
+          bases: state.bases.map((base) => ({
+            ...base,
+            sortOrder: baseIds.indexOf(base.id),
+          })),
+        }));
+      },
+
+      toggleGroupByType: () => {
+        set((state) => ({ groupBasesByType: !state.groupBasesByType }));
       },
 
       // Block actions
