@@ -99,10 +99,9 @@ export function AddIncomeBlockDialog({ open, onOpenChange, bandId, bandInfo }: A
             <Label>Owner (Optional)</Label>
             <Select value={owner} onValueChange={setOwner}>
               <SelectTrigger>
-                <SelectValue placeholder="Optional" />
+                <SelectValue placeholder="Select owner (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
                 {owners.map((o) => (
                   <SelectItem key={o} value={o}>{o}</SelectItem>
                 ))}

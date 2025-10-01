@@ -181,10 +181,9 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
             <Label>To Base (Optional)</Label>
             <Select value={toBaseId} onValueChange={setToBaseId}>
               <SelectTrigger>
-                <SelectValue placeholder="Optional" />
+                <SelectValue placeholder="None (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
                 {bases.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
                     {b.name} ({b.type})
