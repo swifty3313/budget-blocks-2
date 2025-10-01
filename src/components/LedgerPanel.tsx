@@ -8,13 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
-import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Archive, ArchiveRestore, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Plus } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
 import { ManageBlockDialog } from "@/components/ManageBlockDialog";
 import { CalculatorPopover } from "@/components/CalculatorPopover";
 import { LedgerFilterBar, type LedgerFilters } from "@/components/LedgerFilterBar";
+import { BandSettingsDialog } from "@/components/BandSettingsDialog";
 import type { Block } from "@/types";
 
 const formatCurrency = (amount: number) => {
@@ -60,13 +61,10 @@ export function LedgerPanel({
   const executeRow = useStore((state) => state.executeRow);
   const undoExecuteRow = useStore((state) => state.undoExecuteRow);
   const bases = useStore((state) => state.bases);
-  const archiveBand = useStore((state) => state.archiveBand);
-  const unarchiveBand = useStore((state) => state.unarchiveBand);
   
-  // Auto-archive settings - stored in localStorage
-  const [autoArchiveMonths] = useState(2);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showArchived, setShowArchived] = useState(false);
+  const [bandSettingsId, setBandSettingsId] = useState<string | null>(null);
   
   // Filter state - persisted to localStorage
   const [filters, setFilters] = useState<LedgerFilters>(() => {
@@ -126,17 +124,6 @@ export function LedgerPanel({
       }
     }
   }, [selectedMonth]);
-  
-  // Auto-archive old bands
-  useMemo(() => {
-    const now = new Date();
-    bands.forEach((band) => {
-      const monthsOld = differenceInMonths(now, band.endDate);
-      if (monthsOld > autoArchiveMonths && !band.archived) {
-        archiveBand(band.id);
-      }
-    });
-  }, [bands, autoArchiveMonths, archiveBand]);
 
   // Get unique months from bands (use displayMonth if available)
   const availableMonths = useMemo(() => {
@@ -216,9 +203,6 @@ export function LedgerPanel({
           if (!overlapsMonth) return false;
         }
         
-        // Filter by archive status
-        if (band.archived && !showArchived) return false;
-        
         return true;
       })
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
@@ -251,7 +235,6 @@ export function LedgerPanel({
           availableToAllocate,
           blockCount: bandBlocks.length,
           executedCount,
-          archived: band.archived,
         };
       });
   }, [bands, blocks, selectedMonth, showArchived]);
@@ -359,19 +342,8 @@ export function LedgerPanel({
     setSelectedMonth(new Date(year, month - 1, 1));
   };
 
-  const handleArchiveToggle = (bandId: string, isArchived?: boolean) => {
-    if (isArchived) {
-      unarchiveBand(bandId);
-      toast.success("Band unarchived");
-    } else {
-      archiveBand(bandId);
-      toast.success("Band archived");
-    }
-  };
-
   // Check if there are ANY bands in the system (not just current month)
   const hasBandsInSystem = bands.length > 0;
-  const hasActiveBands = bands.filter(b => !b.archived).length > 0;
 
   const handleNewBlockWithGuard = () => {
     if (!hasBandsInSystem) {
@@ -578,11 +550,6 @@ export function LedgerPanel({
                       <div>
                         <div className="flex items-center gap-2">
                           <CardTitle className="text-lg">{summary.title}</CardTitle>
-                          {summary.archived && (
-                            <Badge variant="outline" className="text-xs">
-                              Archived
-                            </Badge>
-                          )}
                           {hasActiveFilters && (
                             <Badge variant="secondary" className="text-xs">
                               Filtered view
@@ -625,15 +592,11 @@ export function LedgerPanel({
                       className="h-8 w-8"
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleArchiveToggle(summary.bandId, summary.archived);
+                        setBandSettingsId(summary.bandId);
                       }}
-                      title={summary.archived ? "Unarchive" : "Archive"}
+                      title="Band Settings"
                     >
-                      {summary.archived ? (
-                        <ArchiveRestore className="w-4 h-4" />
-                      ) : (
-                        <Archive className="w-4 h-4" />
-                      )}
+                      <Settings className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
@@ -974,6 +937,13 @@ export function LedgerPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Band Settings Dialog */}
+      <BandSettingsDialog
+        bandId={bandSettingsId}
+        open={bandSettingsId !== null}
+        onOpenChange={(open) => !open && setBandSettingsId(null)}
+      />
     </div>
   );
 }

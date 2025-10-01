@@ -16,6 +16,7 @@ import { Plus, Trash2, Calendar, RefreshCw, Edit2, Copy, AlertTriangle, Settings
 import { toast } from "sonner";
 import { format, addWeeks, addMonths, addDays, startOfMonth, endOfMonth, lastDayOfMonth, setDate, subMonths } from "date-fns";
 import { generateCompositeBands } from "@/lib/compositePaydays";
+import { BandSettingsDialog } from "@/components/BandSettingsDialog";
 import type { PayPeriodBand, PaySchedule } from "@/types";
 
 interface ManagePayPeriodsDialogProps {
@@ -75,11 +76,6 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
 
   // Band Settings modal
   const [bandSettingsId, setBandSettingsId] = useState<string | null>(null);
-  const [bandSettingsTitle, setBandSettingsTitle] = useState("");
-  const [bandSettingsStartDate, setBandSettingsStartDate] = useState("");
-  const [bandSettingsEndDate, setBandSettingsEndDate] = useState("");
-
-  // Bulk selection
   const [selectedBands, setSelectedBands] = useState<Set<string>>(new Set());
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [bulkDeleteAction, setBulkDeleteAction] = useState<'move' | 'delete'>('move');
@@ -575,79 +571,6 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
 
   const handleOpenBandSettings = (band: PayPeriodBand) => {
     setBandSettingsId(band.id);
-    setBandSettingsTitle(band.title);
-    setBandSettingsStartDate(format(band.startDate, 'yyyy-MM-dd'));
-    setBandSettingsEndDate(format(band.endDate, 'yyyy-MM-dd'));
-  };
-
-  const handleSaveBandSettings = () => {
-    if (!bandSettingsId) return;
-
-    if (!bandSettingsTitle.trim() || !bandSettingsStartDate || !bandSettingsEndDate) {
-      toast.error("Please fill in all fields");
-      return;
-    }
-
-    const start = new Date(bandSettingsStartDate);
-    const end = new Date(bandSettingsEndDate);
-
-    if (start >= end) {
-      toast.error("End date must be after start date");
-      return;
-    }
-
-    const currentBand = bands.find(b => b.id === bandSettingsId);
-    const rule = currentBand?.attributionRule || 'end-month';
-    
-    const updatedBand: Partial<PayPeriodBand> = {
-      title: bandSettingsTitle.trim(),
-      startDate: start,
-      endDate: end,
-    };
-    
-    // Recalculate display month
-    updatedBand.displayMonth = calculateDisplayMonth(
-      { ...currentBand!, ...updatedBand } as PayPeriodBand,
-      rule
-    );
-
-    updateBand(bandSettingsId, updatedBand);
-
-    setBandSettingsId(null);
-    toast.success("Band updated");
-
-    // Check if display month changed
-    if (currentBand && currentBand.displayMonth !== updatedBand.displayMonth) {
-      toast.info(`Band moved to ${format(new Date(updatedBand.displayMonth + '-01'), 'MMMM yyyy')} per attribution rule`);
-    }
-
-    // Reassign blocks
-    const count = reassignBlocksToBands();
-    if (count > 0) {
-      toast.info(`${count} block(s) reassigned to new bands`);
-    }
-  };
-
-  const handleDeleteFromSettings = () => {
-    if (!bandSettingsId) return;
-
-    const bandBlocks = blocks.filter(b => b.bandId === bandSettingsId);
-    const hasExecuted = bandBlocks.some(b => b.rows.some(r => r.executed));
-
-    if (bandBlocks.length > 0) {
-      // Show block handling dialog
-      setBandsWithBlocks([{ bandId: bandSettingsId, blockCount: bandBlocks.length, hasExecuted }]);
-      setSelectedBands(new Set([bandSettingsId]));
-      setBandSettingsId(null);
-      setShowBulkDeleteDialog(true);
-    } else {
-      // No blocks, just delete
-      if (confirm("Delete this band?")) {
-        deleteBand(bandSettingsId);
-        toast.success("Band deleted");
-        setBandSettingsId(null);
-      }
-    }
   };
 
   const handleToggleLock = (bandId: string) => {
@@ -1025,67 +948,11 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
       </Dialog>
 
       {/* Band Settings Dialog */}
-      <Dialog open={bandSettingsId !== null} onOpenChange={(open) => !open && setBandSettingsId(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Band Settings</DialogTitle>
-            <DialogDescription>
-              Edit band details or delete the band
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="band-title">Title *</Label>
-              <Input
-                id="band-title"
-                value={bandSettingsTitle}
-                onChange={(e) => setBandSettingsTitle(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="band-start">Start Date *</Label>
-              <Input
-                id="band-start"
-                type="date"
-                value={bandSettingsStartDate}
-                onChange={(e) => setBandSettingsStartDate(e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="band-end">End Date *</Label>
-              <Input
-                id="band-end"
-                type="date"
-                value={bandSettingsEndDate}
-                onChange={(e) => setBandSettingsEndDate(e.target.value)}
-              />
-            </div>
-
-            <div className="pt-4 border-t">
-              <Button
-                variant="destructive"
-                className="w-full"
-                onClick={handleDeleteFromSettings}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Band
-              </Button>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBandSettingsId(null)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveBandSettings}>
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BandSettingsDialog
+        bandId={bandSettingsId}
+        open={bandSettingsId !== null}
+        onOpenChange={(open) => !open && setBandSettingsId(null)}
+      />
 
       {/* Bulk Delete Dialog */}
       <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
