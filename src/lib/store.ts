@@ -83,7 +83,38 @@ export const useStore = create<AppState>()(
       },
 
       deleteBlock: (id) => {
-        set((state) => ({ blocks: state.blocks.filter((b) => b.id !== id) }));
+        const { blocks, bases } = get();
+        const block = blocks.find((b) => b.id === id);
+        if (!block) return;
+
+        // Reverse all executed rows before deletion
+        const updatedBases = [...bases];
+        block.rows.forEach((row) => {
+          if (!row.executed) return;
+
+          // Reverse balance changes based on block type
+          if (block.type === 'Income' && row.toBaseId) {
+            const toBase = updatedBases.find((b) => b.id === row.toBaseId);
+            if (toBase) toBase.balance -= row.amount;
+          } else if (block.type === 'Fixed Bill' && row.fromBaseId) {
+            const fromBase = updatedBases.find((b) => b.id === row.fromBaseId);
+            if (fromBase) fromBase.balance += row.amount;
+          } else if (block.type === 'Flow') {
+            if (row.fromBaseId) {
+              const fromBase = updatedBases.find((b) => b.id === row.fromBaseId);
+              if (fromBase) fromBase.balance += row.amount;
+            }
+            if (row.toBaseId) {
+              const toBase = updatedBases.find((b) => b.id === row.toBaseId);
+              if (toBase) toBase.balance -= row.amount;
+            }
+          }
+        });
+
+        set({
+          bases: updatedBases,
+          blocks: blocks.filter((b) => b.id !== id),
+        });
       },
 
       moveBlockToBand: (blockId, bandId) => {

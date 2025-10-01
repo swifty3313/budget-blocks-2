@@ -2,10 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
-import { ChevronDown, ChevronRight, Calendar, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, Calendar, Settings, Trash2 } from "lucide-react";
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { ManageBlockDialog } from "@/components/ManageBlockDialog";
 import type { Block } from "@/types";
 
@@ -34,6 +36,7 @@ const calculateBlockTotal = (rows: any[]): number => {
 export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: string, bandInfo: { title: string; startDate: Date; endDate: Date }) => void }) {
   const bands = useStore((state) => state.bands);
   const blocks = useStore((state) => state.blocks);
+  const deleteBlock = useStore((state) => state.deleteBlock);
   const executeRow = useStore((state) => state.executeRow);
   const undoExecuteRow = useStore((state) => state.undoExecuteRow);
   const bases = useStore((state) => state.bases);
@@ -76,6 +79,7 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
   const [expandedBands, setExpandedBands] = useState<Set<string>>(new Set());
   const [expandedBlocks, setExpandedBlocks] = useState<Set<string>>(new Set());
   const [manageBlock, setManageBlock] = useState<Block | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Block | null>(null);
 
   const toggleBand = (bandId: string) => {
     setExpandedBands((prev) => {
@@ -99,6 +103,17 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
       }
       return next;
     });
+  };
+
+  const handleDeleteBlock = (block: Block) => {
+    const hasExecuted = block.rows.some(r => r.executed);
+    deleteBlock(block.id);
+    toast.success(
+      hasExecuted 
+        ? "Block deleted and balances reversed" 
+        : "Block deleted"
+    );
+    setDeleteConfirm(null);
   };
 
   const getBaseName = (baseId?: string) => {
@@ -258,7 +273,7 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3">
+                               <div className="flex items-center gap-3">
                                 <div className="text-right">
                                   <p className="font-semibold">{formatCurrency(total)}</p>
                                   <p className="text-xs text-muted-foreground">
@@ -275,6 +290,17 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
                                   }}
                                 >
                                   <Settings className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirm(block);
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
                                 </Button>
                               </div>
                             </div>
@@ -325,15 +351,26 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
                                   </tbody>
                                 </table>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full"
-                                onClick={() => setManageBlock(block)}
-                              >
-                                <Settings className="w-4 h-4 mr-2" />
-                                Manage Block
-                              </Button>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1"
+                                  onClick={() => setManageBlock(block)}
+                                >
+                                  <Settings className="w-4 h-4 mr-2" />
+                                  Manage
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => setDeleteConfirm(block)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete
+                                </Button>
+                              </div>
                             </CardContent>
                           )}
                         </Card>
@@ -351,7 +388,33 @@ export function LedgerPanel({ onNewBlockInBand }: { onNewBlockInBand?: (bandId: 
         block={manageBlock}
         open={!!manageBlock}
         onOpenChange={(open) => !open && setManageBlock(null)}
+        onDelete={(block) => setDeleteConfirm(block)}
       />
+
+      <AlertDialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this block?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the block and all its rows from this pay period.
+              {deleteConfirm?.rows.some(r => r.executed) && (
+                <span className="block mt-2 text-destructive font-medium">
+                  ⚠️ Executed rows will be un-executed and balances will be reversed.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirm && handleDeleteBlock(deleteConfirm)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

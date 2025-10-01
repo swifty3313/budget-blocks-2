@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { TopBar } from "@/components/TopBar";
 import { KPIPanel } from "@/components/KPIPanel";
 import { BaseBlocksPanel } from "@/components/BaseBlocksPanel";
-import { BlockLibraryPanel } from "@/components/BlockLibraryPanel";
 import { LedgerPanel } from "@/components/LedgerPanel";
 import { ManagePayPeriodsDialog } from "@/components/ManagePayPeriodsDialog";
 import { NewBlockDialog } from "@/components/NewBlockDialog";
@@ -50,7 +49,6 @@ const Index = () => {
       <div className="container mx-auto px-4 py-8 space-y-8">
         <KPIPanel />
         <BaseBlocksPanel />
-        <BlockLibraryPanel />
         <LedgerPanel onNewBlockInBand={handleNewBlock} />
       </div>
 

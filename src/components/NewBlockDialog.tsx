@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
 import { Plus, Trash2, Calendar } from "lucide-react";
 import { toast } from "sonner";
@@ -23,6 +25,8 @@ interface NewBlockDialogProps {
 export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBlockDialogProps) {
   const bases = useStore((state) => state.bases);
   const bands = useStore((state) => state.bands);
+  const library = useStore((state) => state.library);
+  const removeFromLibrary = useStore((state) => state.removeFromLibrary);
   const owners = useStore((state) => state.owners);
   const categories = useStore((state) => state.categories);
   const vendors = useStore((state) => state.vendors);
@@ -45,6 +49,12 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
     if (open && rows.length === 0) {
       const defaultDate = bandInfo?.startDate || new Date();
       addRow(defaultDate);
+    }
+    // Default to templates tab when opened from a band
+    if (open && bandId) {
+      setActiveTab("templates");
+    } else if (open) {
+      setActiveTab("new");
     }
   }, [open]);
 
@@ -213,6 +223,42 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
     setExecuteImmediately(false);
     setRows([]);
     setBlockType("Income");
+    setActiveTab("new");
+  };
+
+  const handleInsertTemplate = (template: any) => {
+    const instanceDate = bandInfo?.startDate || new Date();
+    addBlock({
+      ...template,
+      isTemplate: false,
+      bandId: bandId,
+      date: instanceDate,
+      rows: template.rows.map((r: any) => ({
+        ...r,
+        id: uuidv4(),
+        date: instanceDate,
+        executed: false,
+      })),
+    });
+    toast.success(`${template.title} inserted`);
+    onOpenChange(false);
+  };
+
+  const getBlockTypeColor = (type: string) => {
+    const colors: Record<string, string> = {
+      'Income': 'bg-success/10 text-success border-success/20',
+      'Fixed Bill': 'bg-warning/10 text-warning border-warning/20',
+      'Flow': 'bg-accent/10 text-accent border-accent/20',
+    };
+    return colors[type] || 'bg-muted text-muted-foreground';
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    }).format(amount);
   };
 
   const total = rows.reduce((sum, r) => sum + r.amount, 0);
@@ -582,9 +628,68 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
           </TabsContent>
 
           <TabsContent value="templates" className="mt-4">
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Template selection coming soon. For now, use the Block Library panel to insert templates.
-            </p>
+            {library.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-sm text-muted-foreground mb-4">
+                  No templates saved yet. Create blocks and save them to your library for quick reuse.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {library.map((template) => {
+                  const total = template.rows.reduce((sum, row) => sum + row.amount, 0);
+                  return (
+                    <Card key={template.id} className="hover:shadow-md transition-shadow">
+                      <CardHeader className="pb-2 px-3 pt-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <CardTitle className="text-sm leading-tight truncate">{template.title}</CardTitle>
+                            <div className="flex items-center gap-1 mt-1">
+                              <Badge variant="outline" className={`${getBlockTypeColor(template.type)} text-xs px-1 py-0`}>
+                                {template.type}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3 space-y-2">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xs text-muted-foreground">Total</span>
+                          <span className="text-sm font-bold">{formatCurrency(total)}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground space-y-0.5">
+                          <p className="truncate">Owners: {[...new Set(template.rows.map(r => r.owner))].join(', ')}</p>
+                          <p>{template.rows.length} row(s)</p>
+                        </div>
+                        <div className="flex gap-1 pt-1">
+                          <Button
+                            size="sm"
+                            className="flex-1 h-7 text-xs"
+                            onClick={() => handleInsertTemplate(template)}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Insert
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2"
+                            onClick={() => {
+                              if (confirm("Remove this template from library?")) {
+                                removeFromLibrary(template.id);
+                                toast.success("Template removed");
+                              }
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
 

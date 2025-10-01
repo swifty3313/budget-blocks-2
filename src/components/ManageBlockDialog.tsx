@@ -15,9 +15,10 @@ interface ManageBlockDialogProps {
   block: Block | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onDelete?: (block: Block) => void;
 }
 
-export function ManageBlockDialog({ block, open, onOpenChange }: ManageBlockDialogProps) {
+export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: ManageBlockDialogProps) {
   const updateBlock = useStore((state) => state.updateBlock);
   const bases = useStore((state) => state.bases);
   const library = useStore((state) => state.library);
@@ -446,13 +447,25 @@ export function ManageBlockDialog({ block, open, onOpenChange }: ManageBlockDial
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+        <DialogFooter className="sm:justify-between">
+          <Button 
+            variant="destructive" 
+            onClick={() => {
+              onOpenChange(false);
+              onDelete?.(block);
+            }}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Delete Block
           </Button>
-          <Button onClick={handleSave}>
-            Save Changes
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave}>
+              Save Changes
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
