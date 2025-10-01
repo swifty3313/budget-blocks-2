@@ -155,10 +155,6 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
           toast.error("Fixed Bill rows must have a source (From Base)");
           return;
         }
-        if (!row.category?.trim()) {
-          toast.error("Fixed Bill rows must have a category");
-          return;
-        }
       }
       if (blockType === 'Flow') {
         if (!row.fromBaseId) {
@@ -167,6 +163,10 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
         }
         if (!row.type?.trim()) {
           toast.error("Flow rows must have a type (Transfer, Payment, etc.)");
+          return;
+        }
+        if (!row.category?.trim()) {
+          toast.error("Flow rows must have a category");
           return;
         }
       }
@@ -355,7 +355,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
                       <th className="text-left p-2 font-medium text-xs">Amount *</th>
                       {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">Type *</th>}
                       <th className="text-left p-2 font-medium text-xs">
-                        Category {blockType === 'Fixed Bill' && '*'}
+                        Category {blockType === 'Flow' ? '*' : ''}
                       </th>
                       <th className="text-left p-2 font-medium text-xs">Date *</th>
                       <th className="text-left p-2 font-medium text-xs">Notes</th>
@@ -398,32 +398,16 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
 
                         {/* Source/Vendor */}
                         <td className="p-2">
-                          <Select
+                          <Input
                             value={row.source || ""}
-                            onValueChange={(value) => {
-                              if (value === "__ADD_NEW__") {
-                                const newVendor = prompt(`Enter new ${blockType === 'Fixed Bill' ? 'vendor' : 'source'}:`);
-                                if (newVendor && handleAddToMasterList('vendors', newVendor)) {
-                                  updateRow(row.id, { source: newVendor.trim() });
-                                }
-                              } else {
-                                updateRow(row.id, { source: value });
-                              }
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-xs min-w-[120px]">
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {vendors.map((vendor) => (
-                                <SelectItem key={vendor} value={vendor}>{vendor}</SelectItem>
-                              ))}
-                              <SelectItem value="__ADD_NEW__">
-                                <Plus className="w-3 h-3 inline mr-1" />
-                                Add new...
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                            onChange={(e) => updateRow(row.id, { source: e.target.value })}
+                            placeholder={
+                              blockType === 'Income' ? "Source" :
+                              blockType === 'Fixed Bill' ? "Vendor" :
+                              "Description"
+                            }
+                            className="h-8 text-xs min-w-[120px]"
+                          />
                         </td>
 
                         {/* From Base (Fixed Bill & Flow) */}
@@ -527,7 +511,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo }: NewBloc
                             }}
                           >
                             <SelectTrigger className="h-8 text-xs min-w-[100px]">
-                              <SelectValue placeholder={blockType === 'Fixed Bill' ? "Required" : "Optional"} />
+                              <SelectValue placeholder={blockType === 'Flow' ? "Required" : "Optional"} />
                             </SelectTrigger>
                             <SelectContent>
                               {categories.map((cat) => (
