@@ -55,7 +55,39 @@ const getAmountColor = (tagColor: string | undefined, balance: number) => {
 
 export function BaseBlocksPanel() {
   const bases = useStore((state) => state.bases);
+  const baseTypes = useStore((state) => state.baseTypes);
+  const groupBasesByType = useStore((state) => state.groupBasesByType);
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Sort bases by sortOrder, then by createdAt
+  const sortedBases = [...bases].sort((a, b) => {
+    const orderA = a.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    const orderB = b.sortOrder ?? Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.createdAt.getTime() - b.createdAt.getTime();
+  });
+
+  // Group bases by type if enabled
+  const groupedBases: Record<string, typeof sortedBases> = {};
+  if (groupBasesByType) {
+    baseTypes.forEach(type => {
+      groupedBases[type] = [];
+    });
+    sortedBases.forEach(base => {
+      if (groupedBases[base.type]) {
+        groupedBases[base.type].push(base);
+      } else {
+        if (!groupedBases['Other']) groupedBases['Other'] = [];
+        groupedBases['Other'].push(base);
+      }
+    });
+    // Remove empty groups
+    Object.keys(groupedBases).forEach(key => {
+      if (groupedBases[key].length === 0) delete groupedBases[key];
+    });
+  } else {
+    groupedBases['All'] = sortedBases;
+  }
 
   return (
     <div className="space-y-4">
@@ -80,56 +112,67 @@ export function BaseBlocksPanel() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-          {bases.map((base) => (
-            <Card key={base.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2 px-3 pt-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-0.5 min-w-0 flex-1">
-                    <CardTitle className="text-sm leading-tight truncate">{base.name}</CardTitle>
-                    {base.institution && (
-                      <CardDescription className="text-xs leading-tight truncate">
-                        {base.institution}
-                      </CardDescription>
-                    )}
-                  </div>
-                  <Badge 
-                    variant="outline" 
-                    className={`text-xs px-1.5 py-0 shrink-0 ${!base.tagColor ? getBaseColor(base.type) : 'border'}`}
-                    style={base.tagColor ? getBadgeStyles(base.tagColor) : undefined}
-                  >
-                    {base.type}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="px-3 pb-3">
-                <div className="space-y-1">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-xs text-muted-foreground">Balance</span>
-                    <span 
-                      className={`text-lg font-bold ${!base.tagColor ? getAmountColor(base.tagColor, base.balance) : ''}`}
-                      style={base.tagColor ? { color: getAmountColor(base.tagColor, base.balance) } : undefined}
-                    >
-                      {formatCurrency(base.balance)}
-                    </span>
-                  </div>
-                  {base.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {base.tags.slice(0, 2).map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs px-1 py-0">
-                          {tag}
+        <div className="space-y-6">
+          {Object.entries(groupedBases).map(([groupType, groupBases]) => (
+            <div key={groupType} className="space-y-3">
+              {groupBasesByType && (
+                <h3 className="text-sm font-medium text-muted-foreground px-1">
+                  {groupType}
+                </h3>
+              )}
+              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                {groupBases.map((base) => (
+                  <Card key={base.id} className="hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-2 px-3 pt-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <CardTitle className="text-sm leading-tight truncate">{base.name}</CardTitle>
+                          {base.institution && (
+                            <CardDescription className="text-xs leading-tight truncate">
+                              {base.institution}
+                            </CardDescription>
+                          )}
+                        </div>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs px-1.5 py-0 shrink-0 ${!base.tagColor ? getBaseColor(base.type) : 'border'}`}
+                          style={base.tagColor ? getBadgeStyles(base.tagColor) : undefined}
+                        >
+                          {base.type}
                         </Badge>
-                      ))}
-                      {base.tags.length > 2 && (
-                        <Badge variant="outline" className="text-xs px-1 py-0">
-                          +{base.tags.length - 2}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-3 pb-3">
+                      <div className="space-y-1">
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xs text-muted-foreground">Balance</span>
+                          <span 
+                            className={`text-lg font-bold ${!base.tagColor ? getAmountColor(base.tagColor, base.balance) : ''}`}
+                            style={base.tagColor ? { color: getAmountColor(base.tagColor, base.balance) } : undefined}
+                          >
+                            {formatCurrency(base.balance)}
+                          </span>
+                        </div>
+                        {base.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {base.tags.slice(0, 2).map((tag) => (
+                              <Badge key={tag} variant="outline" className="text-xs px-1 py-0">
+                                {tag}
+                              </Badge>
+                            ))}
+                            {base.tags.length > 2 && (
+                              <Badge variant="outline" className="text-xs px-1 py-0">
+                                +{base.tags.length - 2}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}

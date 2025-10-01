@@ -317,7 +317,24 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
 
               <div className="space-y-2">
                 <Label htmlFor="type">Type *</Label>
-                <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+                <Select 
+                  value={formData.type} 
+                  onValueChange={(value) => {
+                    if (value === "__ADD_NEW__") {
+                      const newType = prompt("Enter new base type:");
+                      if (newType?.trim()) {
+                        const trimmedType = newType.trim();
+                        if (!baseTypes.includes(trimmedType)) {
+                          addToMasterList('baseTypes', trimmedType);
+                        }
+                        setFormData({ ...formData, type: trimmedType });
+                        toast.success("New type added");
+                      }
+                    } else {
+                      setFormData({ ...formData, type: value });
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -327,6 +344,10 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
                         {type}
                       </SelectItem>
                     ))}
+                    <SelectItem value="__ADD_NEW__">
+                      <Plus className="w-3 h-3 inline mr-1" />
+                      Add new...
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
