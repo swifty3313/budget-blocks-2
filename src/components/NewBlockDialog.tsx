@@ -125,7 +125,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
   };
 
   const updateRow = (id: string, updates: Partial<Row>) => {
-    setRows(rows.map((r) => (r.id === id ? { ...r, ...updates } : r)));
+    setRows(prev => prev.map((r) => (r.id === id ? { ...r, ...updates } : r)));
   };
 
   const deleteRow = (id: string) => {
@@ -689,7 +689,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
               </div>
             )}
 
-            {/* Transactions Table */}
+            {/* Transactions List */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Transactions</Label>
@@ -699,43 +699,15 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                 </Button>
               </div>
 
-              <div className="border rounded-lg overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 sticky top-0">
-                    <tr>
-                      <th className="text-left p-2 font-medium text-xs">Owner *</th>
-                      <th className="text-left p-2 font-medium text-xs">
-                        {blockType === 'Income' ? 'Source' : 
-                         blockType === 'Fixed Bill' ? 'Vendor' : 
-                         'Source/Desc'}
-                      </th>
-                      {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">From Base *</th>}
-                      {(blockType === 'Income' || blockType === 'Fixed Bill') && (
-                        <th className="text-left p-2 font-medium text-xs">
-                          {blockType === 'Income' ? 'To Base *' : 'From Base *'}
-                        </th>
-                      )}
-                      {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">To Base</th>}
-                      {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">Mode *</th>}
-                      {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">Value *</th>}
-                      <th className="text-left p-2 font-medium text-xs">
-                        {blockType === 'Flow' ? '$ Amount' : 'Amount *'}
-                      </th>
-                      {blockType === 'Flow' && <th className="text-left p-2 font-medium text-xs">Type *</th>}
-                      <th className="text-left p-2 font-medium text-xs">
-                        Category {blockType === 'Flow' ? '*' : ''}
-                      </th>
-                      <th className="text-left p-2 font-medium text-xs">Date *</th>
-                      <th className="text-left p-2 font-medium text-xs">Notes</th>
-                      <th className="text-center p-2 font-medium text-xs">Execute</th>
-                      <th className="w-10"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, idx) => (
-                      <tr key={row.id} className="border-t hover:bg-muted/30">
+              {/* Scrollable container - vertical only */}
+              <div className="border rounded-lg max-h-[500px] overflow-y-auto">
+                <div className="space-y-2 p-2">
+                  {rows.map((row, idx) => (
+                    <Card key={row.id} className="p-3">
+                      <div className="grid grid-cols-12 gap-2 items-start">
                         {/* Owner */}
-                        <td className="p-2">
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-xs text-muted-foreground">Owner *</Label>
                           <Select
                             value={row.owner}
                             onValueChange={(value) => {
@@ -749,7 +721,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               }
                             }}
                           >
-                            <SelectTrigger className="h-8 text-xs min-w-[120px]">
+                            <SelectTrigger className="h-8 text-xs">
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent>
@@ -762,10 +734,15 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               </SelectItem>
                             </SelectContent>
                           </Select>
-                        </td>
+                        </div>
 
                         {/* Source/Vendor */}
-                        <td className="p-2">
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            {blockType === 'Income' ? 'Source' : 
+                             blockType === 'Fixed Bill' ? 'Vendor' : 
+                             'Source/Desc'}
+                          </Label>
                           <Input
                             value={row.source || ""}
                             onChange={(e) => updateRow(row.id, { source: e.target.value })}
@@ -774,18 +751,19 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               blockType === 'Fixed Bill' ? "Vendor" :
                               "Description"
                             }
-                            className="h-8 text-xs min-w-[120px]"
+                            className="h-8 text-xs"
                           />
-                        </td>
+                        </div>
 
-                        {/* From Base (Fixed Bill & Flow) */}
+                        {/* From Base */}
                         {(blockType === 'Fixed Bill' || blockType === 'Flow') && (
-                          <td className="p-2">
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs text-muted-foreground">From Base *</Label>
                             <Select
                               value={row.fromBaseId || ""}
                               onValueChange={(value) => updateRow(row.id, { fromBaseId: value })}
                             >
-                              <SelectTrigger className="h-8 text-xs min-w-[120px]">
+                              <SelectTrigger className="h-8 text-xs">
                                 <SelectValue placeholder="From" />
                               </SelectTrigger>
                               <SelectContent>
@@ -796,17 +774,20 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                                 ))}
                               </SelectContent>
                             </Select>
-                          </td>
+                          </div>
                         )}
 
-                        {/* To Base (Income & Flow) */}
+                        {/* To Base */}
                         {(blockType === 'Income' || blockType === 'Flow') && (
-                          <td className="p-2">
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs text-muted-foreground">
+                              {blockType === 'Income' ? 'To Base *' : 'To Base'}
+                            </Label>
                             <Select
                               value={row.toBaseId || ""}
                               onValueChange={(value) => updateRow(row.id, { toBaseId: value })}
                             >
-                              <SelectTrigger className="h-8 text-xs min-w-[120px]">
+                              <SelectTrigger className="h-8 text-xs">
                                 <SelectValue placeholder={blockType === 'Flow' ? "To (opt)" : "To"} />
                               </SelectTrigger>
                               <SelectContent>
@@ -817,74 +798,95 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                                 ))}
                               </SelectContent>
                             </Select>
-                          </td>
+                          </div>
                         )}
 
-                        {/* Mode & Value (Flow only) */}
+                        {/* Mode & Value & Amount (Flow only) */}
                         {blockType === 'Flow' && (
                           <>
-                            <td className="p-2">
+                            <div className="col-span-1 space-y-1">
+                              <Label className="text-xs text-muted-foreground">Mode *</Label>
                               <Select
                                 value={row.flowMode || 'Fixed'}
                                 onValueChange={(value: 'Fixed' | '%') => {
-                                  updateRow(row.id, { flowMode: value });
-                                  // Recalculate amount based on new mode
                                   const newAmount = value === '%' && row.flowValue 
                                     ? (row.flowValue / 100) * allocationBasis 
                                     : row.flowValue || 0;
-                                  updateRow(row.id, { amount: newAmount });
+                                  updateRow(row.id, { flowMode: value, amount: newAmount });
                                 }}
                               >
-                                <SelectTrigger className="h-8 text-xs w-20">
+                                <SelectTrigger className="h-8 text-xs">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Fixed">Fixed</SelectItem>
+                                  <SelectItem value="Fixed">$</SelectItem>
                                   <SelectItem value="%">%</SelectItem>
                                 </SelectContent>
                               </Select>
-                            </td>
-                            <td className="p-2">
+                            </div>
+                            <div className="col-span-1 space-y-1">
+                              <Label className="text-xs text-muted-foreground">Value *</Label>
                               <Input
-                                type="number"
-                                step={row.flowMode === '%' ? '0.1' : '0.01'}
+                                type="text"
+                                inputMode="decimal"
                                 value={row.flowValue || ""}
                                 onChange={(e) => {
-                                  const value = parseFloat(e.target.value) || 0;
-                                  updateRow(row.id, { flowValue: value });
-                                  // Recalculate amount
-                                  const newAmount = row.flowMode === '%' 
-                                    ? (value / 100) * allocationBasis 
-                                    : value;
-                                  updateRow(row.id, { amount: newAmount });
+                                  const rawValue = e.target.value;
+                                  // Allow empty, digits, single decimal point
+                                  if (rawValue === '' || /^\d*\.?\d*$/.test(rawValue)) {
+                                    const numValue = parseFloat(rawValue) || 0;
+                                    // Validate percent range
+                                    if (row.flowMode === '%' && numValue > 100) return;
+                                    
+                                    const newAmount = row.flowMode === '%' 
+                                      ? (numValue / 100) * allocationBasis 
+                                      : numValue;
+                                    updateRow(row.id, { flowValue: numValue, amount: newAmount });
+                                  }
+                                }}
+                                onBlur={(e) => {
+                                  const numValue = parseFloat(e.target.value) || 0;
+                                  if (row.flowMode === '%' && (numValue < 0 || numValue > 100)) {
+                                    toast.error("Percent must be between 0 and 100");
+                                    updateRow(row.id, { flowValue: 0, amount: 0 });
+                                  }
                                 }}
                                 placeholder={row.flowMode === '%' ? "0.0" : "0.00"}
-                                className="h-8 text-xs w-20"
+                                className="h-8 text-xs"
                               />
-                            </td>
+                            </div>
+                            <div className="col-span-1 space-y-1">
+                              <Label className="text-xs text-muted-foreground">$ Amount</Label>
+                              <div className="h-8 px-2 flex items-center text-xs font-medium text-muted-foreground border rounded-md bg-muted/30">
+                                {formatCurrency(row.amount || 0)}
+                              </div>
+                            </div>
                           </>
                         )}
 
-                        {/* Amount */}
-                        <td className="p-2">
-                          {blockType === 'Flow' ? (
-                            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                              {formatCurrency(row.amount || 0)}
-                            </div>
-                          ) : (
+                        {/* Amount (non-Flow) */}
+                        {blockType !== 'Flow' && (
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-xs text-muted-foreground">Amount *</Label>
                             <Input
-                              type="number"
-                              step="0.01"
+                              type="text"
+                              inputMode="decimal"
                               value={row.amount || ""}
-                              onChange={(e) => updateRow(row.id, { amount: parseFloat(e.target.value) || 0 })}
-                              className="h-8 text-xs w-24"
+                              onChange={(e) => {
+                                const rawValue = e.target.value;
+                                if (rawValue === '' || /^\d*\.?\d*$/.test(rawValue)) {
+                                  updateRow(row.id, { amount: parseFloat(rawValue) || 0 });
+                                }
+                              }}
+                              className="h-8 text-xs"
                             />
-                          )}
-                        </td>
+                          </div>
+                        )}
 
                         {/* Flow Type (Flow only) */}
                         {blockType === 'Flow' && (
-                          <td className="p-2">
+                          <div className="col-span-1 space-y-1">
+                            <Label className="text-xs text-muted-foreground">Type *</Label>
                             <Select
                               value={row.type || ""}
                               onValueChange={(value) => {
@@ -898,7 +900,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                                 }
                               }}
                             >
-                              <SelectTrigger className="h-8 text-xs min-w-[100px]">
+                              <SelectTrigger className="h-8 text-xs">
                                 <SelectValue placeholder="Type" />
                               </SelectTrigger>
                               <SelectContent>
@@ -911,11 +913,14 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                                 </SelectItem>
                               </SelectContent>
                             </Select>
-                          </td>
+                          </div>
                         )}
 
                         {/* Category */}
-                        <td className="p-2">
+                        <div className="col-span-1 space-y-1">
+                          <Label className="text-xs text-muted-foreground">
+                            Category {blockType === 'Flow' ? '*' : ''}
+                          </Label>
                           <Select
                             value={row.category || ""}
                             onValueChange={(value) => {
@@ -929,7 +934,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               }
                             }}
                           >
-                            <SelectTrigger className="h-8 text-xs min-w-[100px]">
+                            <SelectTrigger className="h-8 text-xs">
                               <SelectValue placeholder={blockType === 'Flow' ? "Required" : "Optional"} />
                             </SelectTrigger>
                             <SelectContent>
@@ -942,60 +947,61 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                               </SelectItem>
                             </SelectContent>
                           </Select>
-                        </td>
+                        </div>
 
                         {/* Date */}
-                        <td className="p-2">
+                        <div className="col-span-1 space-y-1">
+                          <Label className="text-xs text-muted-foreground">Date *</Label>
                           <Input
                             type="date"
                             value={row.date ? format(row.date, 'yyyy-MM-dd') : ''}
                             onChange={(e) => updateRow(row.id, { date: new Date(e.target.value) })}
-                            className="h-8 text-xs w-32"
+                            className="h-8 text-xs"
                           />
-                        </td>
+                        </div>
 
                         {/* Notes */}
-                        <td className="p-2">
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-xs text-muted-foreground">Notes</Label>
                           <Input
                             value={row.notes || ""}
                             onChange={(e) => updateRow(row.id, { notes: e.target.value })}
                             placeholder="Optional"
-                            className="h-8 text-xs min-w-[100px]"
+                            className="h-8 text-xs"
                           />
-                        </td>
+                        </div>
 
-                        {/* Execute Checkbox */}
-                        <td className="p-2 text-center">
-                          <Checkbox
-                            checked={row.executed}
-                            onCheckedChange={(checked) => updateRow(row.id, { executed: checked as boolean })}
-                          />
-                        </td>
+                        {/* Execute & Delete */}
+                        <div className="col-span-1 space-y-1">
+                          <Label className="text-xs text-muted-foreground">Execute</Label>
+                          <div className="flex items-center gap-1 h-8">
+                            <Checkbox
+                              checked={row.executed}
+                              onCheckedChange={(checked) => updateRow(row.id, { executed: checked as boolean })}
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => deleteRow(row.id)}
+                              disabled={rows.length === 1}
+                              className="h-6 w-6 p-0 ml-auto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
 
-                        {/* Delete */}
-                        <td className="p-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteRow(row.id)}
-                            disabled={rows.length === 1}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted/50 font-semibold sticky bottom-0">
-                    <tr>
-                      <td colSpan={blockType === 'Flow' ? 4 : 3} className="p-2 text-right text-sm">
-                        Total:
-                      </td>
-                      <td className="p-2 text-sm">${total.toFixed(2)}</td>
-                      <td colSpan={blockType === 'Flow' ? 6 : 5}></td>
-                    </tr>
-                  </tfoot>
-                </table>
+                {/* Sticky Footer with Total */}
+                <div className="sticky bottom-0 bg-muted/90 backdrop-blur-sm border-t p-3">
+                  <div className="flex justify-between items-center font-semibold text-sm">
+                    <span>Total:</span>
+                    <span>{formatCurrency(total)}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </TabsContent>
