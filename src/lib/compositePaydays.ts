@@ -187,17 +187,45 @@ export function generateCompositeBands(
     sourcePaydays: Array<{ scheduleId: string; scheduleName: string; type: string }>;
   }> = [];
 
-  // Optionally add lead-in band if first payday is after start of range
-  if (includeLeadIn && uniquePaydays[0].date > startDate) {
-    bands.push({
-      startDate: new Date(startDate),
-      endDate: addDays(uniquePaydays[0].date, -1),
-      sourcePaydays: [{ 
-        scheduleId: 'lead-in', 
-        scheduleName: 'Lead-in', 
-        type: 'Before first payday' 
-      }],
+  // Generate lead-in band: use the previous payday before the start date as the actual start
+  // This prevents micro-bands like "Jul 1-2" by starting from the real previous payday
+  if (includeLeadIn && uniquePaydays.length > 0) {
+    const firstPaydayInRange = uniquePaydays[0].date;
+    
+    // Find the previous payday before our date range
+    const extendedStart = addMonths(startDate, -1);
+    const previousPaydays: Payday[] = [];
+    schedules.forEach(schedule => {
+      const schedulePaydays = generatePaydaysForSchedule(schedule, extendedStart, startDate);
+      previousPaydays.push(...schedulePaydays);
     });
+    
+    if (previousPaydays.length > 0) {
+      // Use the last payday before our range as the lead-in start
+      const sortedPrevious = previousPaydays.sort((a, b) => b.date.getTime() - a.date.getTime());
+      const actualStart = sortedPrevious[0].date;
+      
+      bands.push({
+        startDate: actualStart,
+        endDate: addDays(firstPaydayInRange, -1),
+        sourcePaydays: sortedPrevious.slice(0, 1).map(p => ({
+          scheduleId: p.scheduleId,
+          scheduleName: p.scheduleName,
+          type: p.type,
+        })),
+      });
+    } else if (firstPaydayInRange > startDate) {
+      // Fallback: if no previous payday found, use startDate
+      bands.push({
+        startDate: new Date(startDate),
+        endDate: addDays(firstPaydayInRange, -1),
+        sourcePaydays: [{ 
+          scheduleId: 'lead-in', 
+          scheduleName: 'Lead-in', 
+          type: 'Before first payday' 
+        }],
+      });
+    }
   }
 
   // Create bands between consecutive paydays

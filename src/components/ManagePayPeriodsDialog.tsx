@@ -171,25 +171,35 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
       const day2 = schedule.semiMonthlyDay2 || 15;
       const secondAsNext = schedule.semiSecondAsNextMonth || false;
       
+      // Sort anchors to determine which comes first in the month
+      const anchors = [day1, day2].sort((a, b) => {
+        const aNum = a === 'Last' ? 999 : a;
+        const bNum = b === 'Last' ? 999 : b;
+        return aNum - bNum;
+      });
+      const firstAnchor = anchors[0];
+      const secondAnchor = anchors[1];
+      
       for (let monthOffset = -3; monthOffset < monthsCount - 3; monthOffset++) {
         const currentMonth = addMonths(now, monthOffset);
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
+        const lastDay = lastDayOfMonth(currentMonth);
         
-        // First period: day1 to (day2 - 1)
-        const firstStart = getDayOfMonth(year, month, day1);
-        let firstEnd: Date;
+        // Period 1: firstAnchor to (secondAnchor - 1 day)
+        const period1Start = getDayOfMonth(year, month, firstAnchor);
+        let period1End: Date;
         
-        if (day2 === 'Last') {
-          firstEnd = addDays(lastDayOfMonth(currentMonth), -1);
+        if (secondAnchor === 'Last') {
+          period1End = addDays(lastDay, -1);
         } else {
-          firstEnd = addDays(getDayOfMonth(year, month, day2), -1);
+          period1End = addDays(getDayOfMonth(year, month, secondAnchor), -1);
         }
         
         const band1: Omit<PayPeriodBand, 'id'> = {
           title: `${format(currentMonth, 'MMM yyyy')} (1st half)`,
-          startDate: firstStart,
-          endDate: firstEnd,
+          startDate: period1Start,
+          endDate: period1End,
           order: monthOffset * 2 + 100,
           sourceScheduleId: schedule.id,
           attributionRule: rule,
@@ -197,16 +207,18 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
         band1.displayMonth = calculateDisplayMonth(band1 as PayPeriodBand, rule);
         periods.push(band1);
         
-        // Second period: day2 to end of month (or to day1-1 of next month if crossing boundary)
-        const secondStart = getDayOfMonth(year, month, day2);
+        // Period 2: secondAnchor to (next month's firstAnchor - 1 day)
+        const period2Start = secondAnchor === 'Last' 
+          ? lastDay 
+          : getDayOfMonth(year, month, secondAnchor);
+        
         const nextMonth = addMonths(currentMonth, 1);
         const nextYear = nextMonth.getFullYear();
         const nextMonthNum = nextMonth.getMonth();
-        const nextDay1 = getDayOfMonth(nextYear, nextMonthNum, day1);
-        const secondEnd = addDays(nextDay1, -1);
+        const period2End = addDays(getDayOfMonth(nextYear, nextMonthNum, firstAnchor), -1);
         
         let effectiveRule = rule;
-        // If "second as next month" is enabled, override to shift+1 or adjust
+        // If "second as next month" is enabled, override attribution
         if (secondAsNext) {
           effectiveRule = 'shift-plus-1';
         }
@@ -215,8 +227,8 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
           title: secondAsNext 
             ? `${format(nextMonth, 'MMM yyyy')} (PP1)` 
             : `${format(currentMonth, 'MMM yyyy')} (2nd half)`,
-          startDate: secondStart,
-          endDate: secondEnd,
+          startDate: period2Start,
+          endDate: period2End,
           order: monthOffset * 2 + 101,
           sourceScheduleId: schedule.id,
           attributionRule: effectiveRule,
@@ -1086,7 +1098,7 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
             {scheduleFrequency === 'Semi-Monthly' && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="semiDay1">First Anchor Day *</Label>
+                  <Label htmlFor="semiDay1">Anchor A *</Label>
                   <Select 
                     value={scheduleSemiDay1 === 'Last' ? 'Last' : scheduleSemiDay1.toString()} 
                     onValueChange={(v) => setScheduleSemiDay1(v === 'Last' ? 'Last' : parseInt(v))}
@@ -1106,7 +1118,7 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="semiDay2">Second Anchor Day *</Label>
+                  <Label htmlFor="semiDay2">Anchor B *</Label>
                   <Select 
                     value={scheduleSemiDay2 === 'Last' ? 'Last' : scheduleSemiDay2.toString()} 
                     onValueChange={(v) => setScheduleSemiDay2(v === 'Last' ? 'Last' : parseInt(v))}
@@ -1123,6 +1135,44 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
                       <SelectItem value="Last">Last Day</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Live example of periods for current month */}
+                <div className="rounded-md bg-muted/50 p-3 text-xs space-y-1">
+                  <p className="font-medium text-muted-foreground">Example for {format(new Date(), 'MMM yyyy')}:</p>
+                  {(() => {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = now.getMonth();
+                    const lastDay = lastDayOfMonth(now);
+                    
+                    // Sort anchors to determine periods
+                    const anchors = [scheduleSemiDay1, scheduleSemiDay2].sort((a, b) => {
+                      const aNum = a === 'Last' ? 999 : a;
+                      const bNum = b === 'Last' ? 999 : b;
+                      return aNum - bNum;
+                    });
+                    const firstAnchor = anchors[0];
+                    const secondAnchor = anchors[1];
+                    
+                    const period1Start = getDayOfMonth(year, month, firstAnchor);
+                    const period1End = secondAnchor === 'Last' 
+                      ? addDays(lastDay, -1)
+                      : addDays(getDayOfMonth(year, month, secondAnchor), -1);
+                    
+                    const period2Start = secondAnchor === 'Last' 
+                      ? lastDay
+                      : getDayOfMonth(year, month, secondAnchor);
+                    const nextMonth = addMonths(now, 1);
+                    const period2End = addDays(getDayOfMonth(nextMonth.getFullYear(), nextMonth.getMonth(), firstAnchor), -1);
+                    
+                    return (
+                      <>
+                        <p>• Period 1: {format(period1Start, 'MMM d')} – {format(period1End, 'MMM d')}</p>
+                        <p>• Period 2: {format(period2Start, 'MMM d')} – {format(period2End, 'MMM d')}</p>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div className="flex items-center space-x-2 pt-2">
@@ -1156,25 +1206,25 @@ export function ManagePayPeriodsDialog({ open, onOpenChange }: ManagePayPeriodsD
             <div className="space-y-2 pt-2 border-t">
               <Label>Attribution Rule</Label>
               <p className="text-xs text-muted-foreground">
-                Determines which month the band appears under in the Ledger
+                 Determines which month the band appears under in the Ledger
               </p>
               <RadioGroup value={scheduleAttributionRule} onValueChange={(v) => setScheduleAttributionRule(v as AttributionRule)}>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="end-month" id="attr-end" />
                   <Label htmlFor="attr-end" className="font-normal cursor-pointer">
-                    End-month (band shows under month containing end date)
+                    End-month (shows under month with End Date)
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="start-month" id="attr-start" />
                   <Label htmlFor="attr-start" className="font-normal cursor-pointer">
-                    Start-month (band shows under month containing start date)
+                    Start-month (shows under month with Start Date)
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="shift-plus-1" id="attr-shift" />
                   <Label htmlFor="attr-shift" className="font-normal cursor-pointer">
-                    Shift +1 month (band shows under month after end date)
+                    Shift +1 (shows under month after End Date — advanced)
                   </Label>
                 </div>
               </RadioGroup>
