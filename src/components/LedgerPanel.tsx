@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
-import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Archive, ArchiveRestore } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Archive, ArchiveRestore, Plus, Calculator } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
@@ -39,14 +39,20 @@ const calculateBlockTotal = (rows: any[]): number => {
   return rows.reduce((sum, row) => sum + row.amount, 0);
 };
 
-export function LedgerPanel({ onNewBlockInBand }: { 
+export function LedgerPanel({ 
+  onNewBlockInBand,
+  onNewBlock,
+  onManagePeriods
+}: { 
   onNewBlockInBand?: (
     bandId: string, 
     bandInfo: { title: string; startDate: Date; endDate: Date },
     initialBasis?: number,
     basisSource?: 'calculator',
     availableToAllocate?: number
-  ) => void 
+  ) => void;
+  onNewBlock?: () => void;
+  onManagePeriods?: () => void;
 }) {
   const bands = useStore((state) => state.bands);
   const blocks = useStore((state) => state.blocks);
@@ -373,9 +379,34 @@ export function LedgerPanel({ onNewBlockInBand }: {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Ledger</h2>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {/* Calculator - context-aware for current view */}
+          <Button 
+            variant="ghost" 
+            size="icon"
+            title="Calculator"
+          >
+            <Calculator className="w-4 h-4" />
+          </Button>
+          
+          {/* Pay Periods */}
+          {onManagePeriods && (
+            <Button variant="outline" size="sm" onClick={onManagePeriods}>
+              <Settings className="w-4 h-4 mr-2" />
+              Pay Periods
+            </Button>
+          )}
+          
+          {/* New Block */}
+          {onNewBlock && (
+            <Button size="sm" onClick={onNewBlock}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Block
+            </Button>
+          )}
+          
           {/* Show Archived Toggle */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 ml-2 pl-2 border-l">
             <Switch
               id="show-archived"
               checked={showArchived}

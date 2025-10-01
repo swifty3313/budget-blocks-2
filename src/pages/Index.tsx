@@ -50,15 +50,16 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopBar 
-        onNewBlock={() => handleNewBlock()}
-        onManagePeriods={() => setManagePeriodsOpen(true)}
-      />
+      <TopBar />
       
       <div className="container mx-auto px-4 py-8 space-y-8">
         <KPIPanel />
         <BaseBlocksPanel />
-        <LedgerPanel onNewBlockInBand={handleNewBlock} />
+        <LedgerPanel 
+          onNewBlockInBand={handleNewBlock}
+          onNewBlock={() => handleNewBlock()}
+          onManagePeriods={() => setManagePeriodsOpen(true)}
+        />
       </div>
 
       <WelcomeDialog 

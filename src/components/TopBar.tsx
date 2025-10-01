@@ -4,11 +4,10 @@ import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 
 interface TopBarProps {
-  onNewBlock: () => void;
-  onManagePeriods: () => void;
+  // Actions removed - now in LedgerPanel
 }
 
-export function TopBar({ onNewBlock, onManagePeriods }: TopBarProps) {
+export function TopBar({}: TopBarProps) {
   const exportData = useStore((state) => state.exportData);
   const importData = useStore((state) => state.importData);
 
@@ -65,14 +64,6 @@ export function TopBar({ onNewBlock, onManagePeriods }: TopBarProps) {
             <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               Export
-            </Button>
-            <Button variant="outline" size="sm" onClick={onManagePeriods}>
-              <Settings className="w-4 h-4 mr-2" />
-              Pay Periods
-            </Button>
-            <Button onClick={onNewBlock}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Block
             </Button>
           </div>
         </div>
