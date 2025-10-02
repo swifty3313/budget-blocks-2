@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import type { AppState, Base, Block, PayPeriodBand, Row, KPIData, BandSummary, PaySchedule, FixedBill } from '@/types';
+import type { AppState, Base, Block, PayPeriodBand, Row, KPIData, BandSummary, PaySchedule, FixedBill, UndoHistoryItem } from '@/types';
 
 // Helper to calculate block total
 const calculateBlockTotal = (rows: Row[]): number => {
@@ -35,6 +35,7 @@ export const useStore = create<AppState>()(
         dontOfferForFixed: false,
         dontOfferForFlow: false,
       },
+      undoHistory: [],
 
       // Base actions
       addBase: (base) => {
@@ -56,7 +57,22 @@ export const useStore = create<AppState>()(
       },
 
       deleteBase: (id) => {
-        set((state) => ({ bases: state.bases.filter((b) => b.id !== id) }));
+        const { bases, undoHistory } = get();
+        const base = bases.find((b) => b.id === id);
+        if (!base) return;
+
+        // Add to undo history
+        const historyItem: UndoHistoryItem = {
+          id: uuidv4(),
+          entity: { type: 'base', data: base },
+          timestamp: new Date(),
+          label: `Base: ${base.name}`,
+        };
+
+        set((state) => ({
+          bases: state.bases.filter((b) => b.id !== id),
+          undoHistory: [...state.undoHistory, historyItem],
+        }));
       },
 
       reorderBases: (baseIds) => {
@@ -121,9 +137,17 @@ export const useStore = create<AppState>()(
       },
 
       deleteBlock: (id) => {
-        const { blocks, bases } = get();
+        const { blocks, bases, undoHistory } = get();
         const block = blocks.find((b) => b.id === id);
         if (!block) return;
+
+        // Add to undo history
+        const historyItem: UndoHistoryItem = {
+          id: uuidv4(),
+          entity: { type: 'block', data: { ...block } },
+          timestamp: new Date(),
+          label: `Block: ${block.title}`,
+        };
 
         // Reverse all executed rows before deletion
         const updatedBases = [...bases];
@@ -152,6 +176,7 @@ export const useStore = create<AppState>()(
         set({
           bases: updatedBases,
           blocks: blocks.filter((b) => b.id !== id),
+          undoHistory: [...undoHistory, historyItem],
         });
       },
 
@@ -179,11 +204,27 @@ export const useStore = create<AppState>()(
       },
 
       deleteBand: (id) => {
+        const { bands, blocks, undoHistory } = get();
+        const band = bands.find((b) => b.id === id);
+        if (!band) return;
+
+        // Snapshot blocks in this band
+        const affectedBlocks = blocks.filter((b) => b.bandId === id);
+
+        // Add to undo history
+        const historyItem: UndoHistoryItem = {
+          id: uuidv4(),
+          entity: { type: 'band', data: band, blocksSnapshot: affectedBlocks },
+          timestamp: new Date(),
+          label: `Band: ${band.title}`,
+        };
+
         set((state) => ({
           bands: state.bands.filter((b) => b.id !== id),
           blocks: state.blocks.map((block) =>
             block.bandId === id ? { ...block, bandId: undefined } : block
           ),
+          undoHistory: [...state.undoHistory, historyItem],
         }));
       },
 
@@ -233,8 +274,21 @@ export const useStore = create<AppState>()(
       },
 
       deleteSchedule: (id) => {
+        const { schedules, undoHistory } = get();
+        const schedule = schedules.find((s) => s.id === id);
+        if (!schedule) return;
+
+        // Add to undo history
+        const historyItem: UndoHistoryItem = {
+          id: uuidv4(),
+          entity: { type: 'schedule', data: schedule },
+          timestamp: new Date(),
+          label: `Schedule: ${schedule.name}`,
+        };
+
         set((state) => ({
           schedules: state.schedules.filter((s) => s.id !== id),
+          undoHistory: [...state.undoHistory, historyItem],
         }));
       },
 
@@ -258,8 +312,21 @@ export const useStore = create<AppState>()(
       },
 
       deleteFixedBill: (id) => {
+        const { fixedBills, undoHistory } = get();
+        const bill = fixedBills.find((b) => b.id === id);
+        if (!bill) return;
+
+        // Add to undo history
+        const historyItem: UndoHistoryItem = {
+          id: uuidv4(),
+          entity: { type: 'fixedBill', data: bill },
+          timestamp: new Date(),
+          label: `Bill: ${bill.vendor}`,
+        };
+
         set((state) => ({
           fixedBills: state.fixedBills.filter((b) => b.id !== id),
+          undoHistory: [...state.undoHistory, historyItem],
         }));
       },
 
@@ -276,7 +343,22 @@ export const useStore = create<AppState>()(
       },
 
       removeFromLibrary: (id) => {
-        set((state) => ({ library: state.library.filter((b) => b.id !== id) }));
+        const { library, undoHistory } = get();
+        const template = library.find((b) => b.id === id);
+        if (!template) return;
+
+        // Add to undo history
+        const historyItem: UndoHistoryItem = {
+          id: uuidv4(),
+          entity: { type: 'template', data: template },
+          timestamp: new Date(),
+          label: `Template: ${template.title}`,
+        };
+
+        set((state) => ({
+          library: state.library.filter((b) => b.id !== id),
+          undoHistory: [...state.undoHistory, historyItem],
+        }));
       },
 
       // Execute/Undo actions
@@ -391,6 +473,67 @@ export const useStore = create<AppState>()(
         }));
       },
 
+      // Undo actions
+      undoDelete: (historyId) => {
+        const { undoHistory } = get();
+        const historyItem = undoHistory.find((h) => h.id === historyId);
+        if (!historyItem) return false;
+
+        const { entity } = historyItem;
+
+        switch (entity.type) {
+          case 'block':
+            set((state) => ({
+              blocks: [...state.blocks, entity.data],
+              undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
+            }));
+            break;
+          case 'base':
+            set((state) => ({
+              bases: [...state.bases, entity.data],
+              undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
+            }));
+            break;
+          case 'band':
+            set((state) => ({
+              bands: [...state.bands, entity.data],
+              blocks: state.blocks.map((block) => {
+                const snapshotBlock = entity.blocksSnapshot.find((b) => b.id === block.id);
+                if (snapshotBlock) {
+                  return { ...block, bandId: entity.data.id };
+                }
+                return block;
+              }),
+              undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
+            }));
+            break;
+          case 'template':
+            set((state) => ({
+              library: [...state.library, entity.data],
+              undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
+            }));
+            break;
+          case 'schedule':
+            set((state) => ({
+              schedules: [...state.schedules, entity.data],
+              undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
+            }));
+            break;
+          case 'fixedBill':
+            set((state) => ({
+              fixedBills: [...state.fixedBills, entity.data],
+              undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
+            }));
+            break;
+        }
+
+        return true;
+      },
+
+      clearUndoHistory: () => {
+        set({ undoHistory: [] });
+      },
+
       // Data actions
       exportData: () => {
         const state = get();
@@ -432,6 +575,7 @@ export const useStore = create<AppState>()(
               dontOfferForFixed: false,
               dontOfferForFlow: false,
             },
+            undoHistory: [],
           });
         } catch (error) {
           console.error('Failed to import data:', error);
@@ -457,6 +601,7 @@ export const useStore = create<AppState>()(
             dontOfferForFixed: false,
             dontOfferForFlow: false,
           },
+          undoHistory: [],
         });
       },
     }),

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import type { Block, Row } from "@/types";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 
 interface ManageBlockDialogProps {
   block: Block | null;
@@ -34,6 +35,7 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
   const [updateTemplate, setUpdateTemplate] = useState(false);
   const [cardViewFields, setCardViewFields] = useState<string[]>(['source', 'amount', 'date']);
   const [showCardView, setShowCardView] = useState(false);
+  const [deleteRowId, setDeleteRowId] = useState<string | null>(null);
 
   useEffect(() => {
     if (block && open) {
@@ -77,6 +79,7 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
       return;
     }
     setRows(rows.filter((r) => r.id !== id));
+    setDeleteRowId(null);
   };
 
   const updateRow = (id: string, updates: Partial<Row>) => {

@@ -116,6 +116,22 @@ export interface FixedBill {
   updatedAt: Date;
 }
 
+// Undo history types
+export type UndoableEntity = 
+  | { type: 'block'; data: Block }
+  | { type: 'base'; data: Base }
+  | { type: 'band'; data: PayPeriodBand; blocksSnapshot: Block[] }
+  | { type: 'template'; data: Block }
+  | { type: 'schedule'; data: PaySchedule }
+  | { type: 'fixedBill'; data: FixedBill };
+
+export interface UndoHistoryItem {
+  id: string;
+  entity: UndoableEntity;
+  timestamp: Date;
+  label: string;
+}
+
 export interface AppState {
   bases: Base[];
   blocks: Block[];
@@ -139,6 +155,7 @@ export interface AppState {
     dontOfferForFixed: boolean;
     dontOfferForFlow: boolean;
   };
+  undoHistory: UndoHistoryItem[];
   
   // Actions
   addBase: (base: Omit<Base, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -176,6 +193,9 @@ export interface AppState {
   addToMasterList: (type: 'owners' | 'categories' | 'vendors' | 'institutions' | 'baseTypes' | 'flowTypes', value: string) => void;
   
   updateTemplatePreference: (blockType: BlockType, dontOffer: boolean) => void;
+  
+  undoDelete: (historyId: string) => boolean;
+  clearUndoHistory: () => void;
   
   exportData: () => string;
   importData: (json: string) => void;

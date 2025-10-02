@@ -16,6 +16,8 @@ import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
 import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
 import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { showUndoToast } from "@/lib/undoToast";
 import { DatePickerField } from "@/components/shared/DatePickerField";
 import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
@@ -51,6 +53,7 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
   const [showApplyAllocation, setShowApplyAllocation] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // Flow allocation state
   const [basisSource, setBasisSource] = useState<'band' | 'manual'>('band');
@@ -183,10 +186,16 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
   };
 
   const handleDelete = () => {
-    if (onDelete) {
-      onDelete(block);
-      onOpenChange(false);
+    const { deleteBlock, undoHistory } = useStore.getState();
+    deleteBlock(block.id);
+    
+    // Get the history item that was just added
+    const historyItem = undoHistory[undoHistory.length - 1];
+    if (historyItem) {
+      showUndoToast('block', historyItem.id, block.title);
     }
+    
+    onOpenChange(false);
   };
 
   const handleInsertBills = (newRows: Row[]) => {
@@ -567,7 +576,11 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
 
           <DialogFooter className="flex items-center justify-between">
             <div className="flex gap-2">
-              <Button variant="destructive" onClick={handleDelete}>
+              <Button 
+                variant="destructive" 
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
                 Delete Block
               </Button>
             </div>
@@ -632,6 +645,15 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
           rows,
           allocationBasisValue: blockType === 'Flow' ? allocationBasis : undefined,
         } : null}
+      />
+      
+      {/* Delete Confirmation Dialog */}
+      <DeleteConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        onConfirm={handleDelete}
+        type="block"
+        contextInfo={`"${title}"`}
       />
     </>
   );
