@@ -160,13 +160,13 @@ export interface AppState {
   // Actions
   addBase: (base: Omit<Base, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateBase: (id: string, updates: Partial<Base>) => void;
-  deleteBase: (id: string) => void;
+  deleteBase: (id: string) => string;
   reorderBases: (baseIds: string[]) => void;
   toggleGroupByType: () => void;
   
   addBlock: (block: Omit<Block, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateBlock: (id: string, updates: Partial<Block>) => void;
-  deleteBlock: (id: string) => void;
+  deleteBlock: (id: string) => string;
   moveBlockToBand: (blockId: string, bandId: string | undefined) => void;
   
   addBand: (band: Omit<PayPeriodBand, 'id'>) => void;
@@ -185,7 +185,7 @@ export interface AppState {
   deleteFixedBill: (id: string) => void;
   
   saveToLibrary: (block: Block) => void;
-  removeFromLibrary: (id: string) => void;
+  removeFromLibrary: (id: string) => string;
   
   executeRow: (blockId: string, rowId: string) => void;
   undoExecuteRow: (blockId: string, rowId: string) => void;

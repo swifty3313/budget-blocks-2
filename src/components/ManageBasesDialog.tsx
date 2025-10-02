@@ -12,6 +12,8 @@ import { Plus, Trash2, AlertTriangle, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import { COLOR_PALETTE, hasGoodContrast } from "@/lib/colorUtils";
 import type { Base } from "@/types";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { showUndoToast } from "@/lib/undoToast";
 import {
   DndContext,
   closestCenter,
@@ -40,7 +42,7 @@ interface SortableBaseItemProps {
   isEditing: boolean;
   isSelected: boolean;
   onEdit: (base: Base) => void;
-  onDelete: (id: string) => void;
+  onDelete: () => void;
   onToggleSelect: (id: string) => void;
 }
 
@@ -110,7 +112,7 @@ function SortableBaseItem({ base, isEditing, isSelected, onEdit, onDelete, onTog
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onDelete(base.id)}
+            onClick={onDelete}
           >
             <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
@@ -151,6 +153,8 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
     deletable: Base[];
     blocked: Array<{ base: Base; rowCount: number; blockCount: number }>;
   } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [baseToDelete, setBaseToDelete] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -296,14 +300,20 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
     setEditingId(base.id);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this base?")) {
-      deleteBase(id);
-      toast.success("Base deleted");
-      if (editingId === id) {
-        resetForm();
-      }
+  const handleDelete = () => {
+    if (!baseToDelete) return;
+    
+    const base = bases.find(b => b.id === baseToDelete);
+    const historyId = deleteBase(baseToDelete);
+    
+    if (editingId === baseToDelete) {
+      resetForm();
     }
+    
+    setShowDeleteConfirm(false);
+    setBaseToDelete(null);
+    
+    showUndoToast('base', historyId, base?.name);
   };
 
   const handleToggleSelect = (id: string) => {
@@ -650,15 +660,18 @@ export function ManageBasesDialog({ open, onOpenChange }: ManageBasesDialogProps
                       >
                         <div className="space-y-2">
                           {groupBases.map((base) => (
-                            <SortableBaseItem
-                              key={base.id}
-                              base={base}
-                              isEditing={editingId === base.id}
-                              isSelected={selectedBases.has(base.id)}
-                              onEdit={handleEdit}
-                              onDelete={handleDelete}
-                              onToggleSelect={handleToggleSelect}
-                            />
+                  <SortableBaseItem
+                    key={base.id}
+                    base={base}
+                    isEditing={editingId === base.id}
+                    isSelected={selectedBases.has(base.id)}
+                    onEdit={handleEdit}
+                    onDelete={() => {
+                      setBaseToDelete(base.id);
+                      setShowDeleteConfirm(true);
+                    }}
+                    onToggleSelect={handleToggleSelect}
+                  />
                           ))}
                         </div>
                       </SortableContext>

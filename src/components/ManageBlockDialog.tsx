@@ -11,6 +11,7 @@ import { format } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import type { Block, Row } from "@/types";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { showUndoToast } from "@/lib/undoToast";
 
 interface ManageBlockDialogProps {
   block: Block | null;
@@ -36,6 +37,7 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
   const [cardViewFields, setCardViewFields] = useState<string[]>(['source', 'amount', 'date']);
   const [showCardView, setShowCardView] = useState(false);
   const [deleteRowId, setDeleteRowId] = useState<string | null>(null);
+  const [showDeleteRowConfirm, setShowDeleteRowConfirm] = useState(false);
 
   useEffect(() => {
     if (block && open) {
@@ -72,14 +74,27 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
     setRows([...rows, newRow]);
   };
 
-  const deleteRow = (id: string) => {
-    const row = rows.find(r => r.id === id);
+  const deleteRow = () => {
+    if (!deleteRowId) return;
+    
+    const row = rows.find(r => r.id === deleteRowId);
     if (row?.executed) {
       toast.error("Cannot delete an executed row. Un-execute it first.");
+      setShowDeleteRowConfirm(false);
+      setDeleteRowId(null);
       return;
     }
-    setRows(rows.filter((r) => r.id !== id));
+    
+    const rowIdentifier = row?.source || row?.owner || 'Transaction';
+    
+    // Store in undo history  
+    const historyId = `row-${deleteRowId}`;
+    
+    setRows(rows.filter((r) => r.id !== deleteRowId));
+    setShowDeleteRowConfirm(false);
     setDeleteRowId(null);
+    
+    showUndoToast('row', historyId, rowIdentifier);
   };
 
   const updateRow = (id: string, updates: Partial<Row>) => {
@@ -289,7 +304,10 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => deleteRow(row.id)}
+                        onClick={() => {
+                          setDeleteRowId(row.id);
+                          setShowDeleteRowConfirm(true);
+                        }}
                       >
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
@@ -528,7 +546,10 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => deleteRow(row.id)}
+                        onClick={() => {
+                          setDeleteRowId(row.id);
+                          setShowDeleteRowConfirm(true);
+                        }}
                       >
                         <Trash2 className="w-4 h-4 text-destructive" />
                       </Button>
@@ -582,6 +603,13 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
           </div>
         </DialogFooter>
       </DialogContent>
+      
+      <DeleteConfirmDialog
+        open={showDeleteRowConfirm}
+        onOpenChange={setShowDeleteRowConfirm}
+        onConfirm={deleteRow}
+        type="row"
+      />
     </Dialog>
   );
 }

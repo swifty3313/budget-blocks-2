@@ -59,7 +59,7 @@ export const useStore = create<AppState>()(
       deleteBase: (id) => {
         const { bases, undoHistory } = get();
         const base = bases.find((b) => b.id === id);
-        if (!base) return;
+        if (!base) return '';
 
         // Add to undo history
         const historyItem: UndoHistoryItem = {
@@ -73,6 +73,8 @@ export const useStore = create<AppState>()(
           bases: state.bases.filter((b) => b.id !== id),
           undoHistory: [...state.undoHistory, historyItem],
         }));
+        
+        return historyItem.id;
       },
 
       reorderBases: (baseIds) => {
@@ -139,7 +141,7 @@ export const useStore = create<AppState>()(
       deleteBlock: (id) => {
         const { blocks, bases, undoHistory } = get();
         const block = blocks.find((b) => b.id === id);
-        if (!block) return;
+        if (!block) return '';
 
         // Add to undo history
         const historyItem: UndoHistoryItem = {
@@ -178,6 +180,8 @@ export const useStore = create<AppState>()(
           blocks: blocks.filter((b) => b.id !== id),
           undoHistory: [...undoHistory, historyItem],
         });
+        
+        return historyItem.id;
       },
 
       moveBlockToBand: (blockId, bandId) => {
@@ -345,7 +349,7 @@ export const useStore = create<AppState>()(
       removeFromLibrary: (id) => {
         const { library, undoHistory } = get();
         const template = library.find((b) => b.id === id);
-        if (!template) return;
+        if (!template) return '';
 
         // Add to undo history
         const historyItem: UndoHistoryItem = {
@@ -359,6 +363,8 @@ export const useStore = create<AppState>()(
           library: state.library.filter((b) => b.id !== id),
           undoHistory: [...state.undoHistory, historyItem],
         }));
+        
+        return historyItem.id;
       },
 
       // Execute/Undo actions

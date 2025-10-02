@@ -4,6 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
 import { Library, Plus, Copy } from "lucide-react";
 import { format } from "date-fns";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { showUndoToast } from "@/lib/undoToast";
+import { useState } from "react";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
@@ -26,6 +29,9 @@ export function BlockLibraryPanel() {
   const library = useStore((state) => state.library);
   const addBlock = useStore((state) => state.addBlock);
   const removeFromLibrary = useStore((state) => state.removeFromLibrary);
+  
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
 
   const handleInsertTemplate = (template: any) => {
     // Create a new block instance from the template
@@ -34,6 +40,18 @@ export function BlockLibraryPanel() {
       isTemplate: false,
       date: new Date(), // Use current date, will be assigned to band
     });
+  };
+
+  const handleDeleteTemplate = () => {
+    if (!templateToDelete) return;
+    
+    const template = library.find(t => t.id === templateToDelete);
+    const historyId = removeFromLibrary(templateToDelete);
+    
+    setShowDeleteConfirm(false);
+    setTemplateToDelete(null);
+    
+    showUndoToast('template', historyId, template?.title);
   };
 
   if (library.length === 0) {
@@ -113,9 +131,8 @@ export function BlockLibraryPanel() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      if (confirm("Remove this template from library?")) {
-                        removeFromLibrary(template.id);
-                      }
+                      setTemplateToDelete(template.id);
+                      setShowDeleteConfirm(true);
                     }}
                   >
                     <Copy className="w-3 h-3" />
@@ -126,6 +143,14 @@ export function BlockLibraryPanel() {
           );
         })}
       </div>
+
+      <DeleteConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        onConfirm={handleDeleteTemplate}
+        type="template"
+        contextInfo={library.find(t => t.id === templateToDelete)?.title}
+      />
     </div>
   );
 }
