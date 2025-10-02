@@ -6,10 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { useStore } from "@/lib/store";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, isWithinInterval } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
+import { CalendarIcon } from "lucide-react";
 import type { Row } from "@/types";
 
 interface QuickExpenseDialogProps {
@@ -34,6 +37,7 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
   const [value, setValue] = useState<number>(0);
   const [category, setCategory] = useState("");
   const [date, setDate] = useState<Date>(new Date());
+  const [dateInput, setDateInput] = useState("");
   const [notes, setNotes] = useState("");
   const [execute, setExecute] = useState(false);
 
@@ -41,11 +45,32 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
   useEffect(() => {
     if (open) {
       setDate(bandInfo.startDate);
+      setDateInput(format(bandInfo.startDate, 'MM/dd/yyyy'));
       if (owners.length > 0) {
         setOwner(owners[0]);
       }
     }
   }, [open, bandInfo, owners]);
+
+  const handleDateInputChange = (value: string) => {
+    setDateInput(value);
+    // Try to parse MM/DD/YYYY
+    const match = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (match) {
+      const [_, month, day, year] = match;
+      const parsed = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      if (!isNaN(parsed.getTime())) {
+        setDate(parsed);
+      }
+    }
+  };
+
+  const isDateOutsideBand = !isWithinInterval(date, { start: bandInfo.startDate, end: bandInfo.endDate });
+
+  const handleQuickDateSet = (targetDate: Date) => {
+    setDate(targetDate);
+    setDateInput(format(targetDate, 'MM/dd/yyyy'));
+  };
 
   const handleSave = (executeImmediately: boolean = false) => {
     // Validation
@@ -119,6 +144,7 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
     setValue(0);
     setCategory("");
     setDate(bandInfo.startDate);
+    setDateInput(format(bandInfo.startDate, 'MM/dd/yyyy'));
     setNotes("");
     setExecute(false);
   };
@@ -238,11 +264,49 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
           {/* Date */}
           <div className="space-y-2">
             <Label>Date *</Label>
-            <Input
-              type="date"
-              value={format(date, 'yyyy-MM-dd')}
-              onChange={(e) => setDate(new Date(e.target.value))}
-            />
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[140px] justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(date, 'MMM d, yyyy')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={(d) => d && handleQuickDateSet(d)}
+                    initialFocus
+                  />
+                  <div className="p-3 border-t flex gap-2">
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleQuickDateSet(new Date())}>
+                      Today
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleQuickDateSet(bandInfo.startDate)}>
+                      Band Start
+                    </Button>
+                    <Button size="sm" variant="outline" className="flex-1" onClick={() => handleQuickDateSet(bandInfo.endDate)}>
+                      Band End
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Input
+                placeholder="MM/DD/YYYY"
+                value={dateInput}
+                onChange={(e) => handleDateInputChange(e.target.value)}
+                className="flex-1"
+              />
+            </div>
+            {isDateOutsideBand && (
+              <div className="flex items-center gap-2 text-xs text-warning">
+                <span>⚠️ Date is outside this band</span>
+                <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={() => handleQuickDateSet(bandInfo.startDate)}>
+                  Use band start
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* Notes */}

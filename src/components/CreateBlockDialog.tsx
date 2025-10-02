@@ -123,7 +123,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
         toast.error("All rows must have an owner");
         return;
       }
-      if (row.amount <= 0) {
+      if (!row.amount || row.amount <= 0) {
         toast.error("All rows must have a positive amount");
         return;
       }
@@ -141,7 +141,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
           return;
         }
         if (!row.category?.trim()) {
-          toast.error("Flow rows must have a category");
+          toast.error("Flow rows must have a category (required for Flow blocks)");
           return;
         }
       }

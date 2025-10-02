@@ -120,9 +120,27 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
         toast.error("All rows must have an owner");
         return;
       }
-      if (row.amount <= 0) {
+      if (!row.amount || row.amount <= 0) {
         toast.error("All rows must have a positive amount");
         return;
+      }
+      if (blockType === 'Income' && !row.toBaseId) {
+        toast.error("Income rows must have a destination (To Base)");
+        return;
+      }
+      if (blockType === 'Fixed Bill' && !row.fromBaseId) {
+        toast.error("Fixed Bill rows must have a source (From Base)");
+        return;
+      }
+      if (blockType === 'Flow') {
+        if (!row.fromBaseId) {
+          toast.error("Flow rows must have a source (From Base)");
+          return;
+        }
+        if (!row.category?.trim()) {
+          toast.error("Flow rows must have a category (required for Flow blocks)");
+          return;
+        }
       }
     }
 
