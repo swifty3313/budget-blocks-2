@@ -39,6 +39,7 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
   const [date, setDate] = useState<Date>(new Date());
   const [notes, setNotes] = useState("");
   const [execute, setExecute] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Initialize with band start date and first owner
   useEffect(() => {
@@ -52,7 +53,8 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
 
   const isDateOutsideBand = !isWithinInterval(date, { start: bandInfo.startDate, end: bandInfo.endDate });
 
-  const handleSave = (executeImmediately: boolean = false) => {
+  const handleSave = async (executeImmediately: boolean = false) => {
+    if (isSaving) return;
     // Validation
     if (!owner.trim()) {
       toast.error("Please select an owner");
@@ -80,39 +82,61 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
       addToMasterList('categories', category);
     }
 
-    // Create the row
-    const amount = mode === 'Fixed' ? value : 0; // % mode not typical for quick expense
-    const row: Row = {
-      id: uuidv4(),
-      date,
-      owner,
-      source,
-      fromBaseId,
-      toBaseId: toBaseId || undefined,
-      amount,
-      flowMode: mode,
-      flowValue: value,
-      type: 'Expense', // Fixed typing for quick expense
-      category,
-      notes,
-      executed: executeImmediately,
-    };
+    setIsSaving(true);
 
-    // Create Flow block
-    addBlock({
-      type: 'Flow',
-      title: source,
-      date,
-      tags: [],
-      rows: [row],
-      bandId,
-    });
+    try {
+      // Create the row
+      const amount = mode === 'Fixed' ? value : 0; // % mode not typical for quick expense
+      const row: Row = {
+        id: uuidv4(),
+        date,
+        owner,
+        source,
+        fromBaseId,
+        toBaseId: toBaseId || undefined,
+        amount,
+        flowMode: mode,
+        flowValue: value,
+        type: 'Expense', // Fixed typing for quick expense
+        category,
+        notes,
+        executed: executeImmediately,
+      };
 
-    toast.success(executeImmediately ? "Expense added and executed" : "Expense added");
-    
-    // Reset form
-    resetForm();
-    onOpenChange(false);
+      if (!bandId) {
+        toast.error("No band selected - cannot create expense");
+        return;
+      }
+
+      console.debug('createBlockAndInsert payload (Quick Expense)', {
+        bandId,
+        type: 'Flow',
+        title: source,
+        date,
+        rowCount: 1,
+      });
+
+      // Create Flow block
+      addBlock({
+        type: 'Flow',
+        title: source,
+        date,
+        tags: [],
+        rows: [row],
+        bandId,
+      });
+
+      toast.success(executeImmediately ? "Expense added and executed" : "Expense added");
+      
+      // Reset form
+      resetForm();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to create expense', error);
+      toast.error(`Couldn't create expense: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const resetForm = () => {
@@ -267,14 +291,14 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancel
           </Button>
-          <Button variant="outline" onClick={() => handleSave(false)}>
-            Save
+          <Button variant="outline" onClick={() => handleSave(false)} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save"}
           </Button>
-          <Button onClick={() => handleSave(true)}>
-            Save & Execute
+          <Button onClick={() => handleSave(true)} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save & Execute"}
           </Button>
         </DialogFooter>
       </DialogContent>

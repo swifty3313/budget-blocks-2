@@ -70,7 +70,22 @@ export const useStore = create<AppState>()(
       // Block actions
       addBlock: (block) => {
         const { bands } = get();
-        const bandId = findBandForDate(block.date, bands);
+        // Prefer passed bandId, fallback to date-based lookup
+        const bandId = block.bandId || findBandForDate(block.date, bands);
+        
+        console.debug('addBlock called', {
+          type: block.type,
+          title: block.title,
+          date: block.date,
+          passedBandId: block.bandId,
+          resolvedBandId: bandId,
+          rowCount: block.rows?.length || 0,
+        });
+
+        if (!bandId && !block.isTemplate) {
+          console.error('No bandId resolved for block', { date: block.date, availableBands: bands.length });
+        }
+
         const newBlock: Block = {
           ...block,
           id: uuidv4(),
@@ -79,6 +94,8 @@ export const useStore = create<AppState>()(
           updatedAt: new Date(),
         };
         set((state) => ({ blocks: [...state.blocks, newBlock] }));
+        
+        console.debug('Block added successfully', { id: newBlock.id, bandId: newBlock.bandId });
       },
 
       updateBlock: (id, updates) => {

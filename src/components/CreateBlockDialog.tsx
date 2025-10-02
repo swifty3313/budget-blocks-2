@@ -112,7 +112,11 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
     return allocationBasis - calculateFlowAllocated();
   };
 
-  const validateAndSave = (saveToLib: boolean = false) => {
+  const [isSaving, setIsSaving] = useState(false);
+
+  const validateAndSave = async (saveToLib: boolean = false) => {
+    if (isSaving) return;
+
     if (!title.trim()) {
       toast.error("Please enter a title");
       return;
@@ -148,31 +152,55 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
       }
     }
 
-    if (saveToLib) {
-      // Save to library
-      addBlock({
-        type: blockType,
-        title: title.trim(),
-        date: new Date(),
-        tags: [],
-        rows: rows,
-        bandId: '', // Empty bandId indicates it's a template
-        isTemplate: true,
-      });
-      toast.success("Saved to library");
-    } else {
-      // Insert into band
-      addBlock({
-        type: blockType,
-        title: title.trim(),
-        date,
-        tags: [],
-        rows: rows,
-        bandId,
-      });
-      toast.success("Block created");
-      resetForm();
-      onOpenChange(false);
+    setIsSaving(true);
+
+    try {
+      if (saveToLib) {
+        // Save to library
+        console.debug('Saving to library', { type: blockType, title: title.trim(), rowCount: rows.length });
+        addBlock({
+          type: blockType,
+          title: title.trim(),
+          date: new Date(),
+          tags: [],
+          rows: rows,
+          bandId: '', // Empty bandId indicates it's a template
+          isTemplate: true,
+        });
+        toast.success("Saved to library");
+      } else {
+        // Insert into band
+        if (!bandId) {
+          toast.error("No band selected - cannot insert block");
+          return;
+        }
+        
+        console.debug('createBlockAndInsert payload', {
+          bandId,
+          type: blockType,
+          title: title.trim(),
+          date,
+          rowCount: rows.length,
+        });
+
+        addBlock({
+          type: blockType,
+          title: title.trim(),
+          date,
+          tags: [],
+          rows: rows,
+          bandId,
+        });
+        
+        toast.success("Block created");
+        resetForm();
+        onOpenChange(false);
+      }
+    } catch (error) {
+      console.error('Failed to save block', error);
+      toast.error(`Couldn't create block: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -509,14 +537,14 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
         </Tabs>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             Cancel
           </Button>
-          <Button variant="secondary" onClick={() => validateAndSave(true)}>
-            Save to Library
+          <Button variant="secondary" onClick={() => validateAndSave(true)} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save to Library"}
           </Button>
-          <Button onClick={() => validateAndSave(false)}>
-            Save & Insert
+          <Button onClick={() => validateAndSave(false)} disabled={isSaving}>
+            {isSaving ? "Saving..." : "Save & Insert"}
           </Button>
         </DialogFooter>
       </DialogContent>
