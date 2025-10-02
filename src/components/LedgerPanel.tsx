@@ -856,15 +856,6 @@ export function LedgerPanel({
                                   <Settings className="w-4 h-4 mr-2" />
                                   Manage
                                 </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-destructive hover:text-destructive"
-                                  onClick={() => setDeleteConfirm(block)}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Delete
-                                </Button>
                               </div>
                             </CardContent>
                           )}

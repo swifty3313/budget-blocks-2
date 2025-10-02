@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { Block, Row, BlockType } from "@/types";
 import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
+import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
 import { DatePickerField } from "@/components/shared/DatePickerField";
 import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
@@ -47,6 +48,7 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
   const [date, setDate] = useState<Date>(new Date());
   const [showInsertBills, setShowInsertBills] = useState(false);
   const [showApplyAllocation, setShowApplyAllocation] = useState(false);
+  const [showDuplicate, setShowDuplicate] = useState(false);
   
   // Flow allocation state
   const [basisSource, setBasisSource] = useState<'band' | 'manual'>('band');
@@ -174,20 +176,8 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
     onOpenChange(false);
   };
 
-  const handleRename = () => {
-    const newTitle = prompt("Enter new title:", title);
-    if (newTitle && newTitle.trim()) {
-      setTitle(newTitle.trim());
-    }
-  };
-
   const handleDuplicate = () => {
-    const { id, createdAt, updatedAt, ...blockData } = block;
-    addBlock({ 
-      ...blockData, 
-      rows: block.rows.map(r => ({ ...r, id: uuidv4(), executed: false })) 
-    });
-    toast.success("Block duplicated");
+    setShowDuplicate(true);
   };
 
   const handleDelete = () => {
@@ -575,9 +565,6 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
 
           <DialogFooter className="flex items-center justify-between">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleRename}>
-                Rename
-              </Button>
               <Button variant="outline" onClick={handleDuplicate}>
                 Duplicate to...
               </Button>
@@ -619,6 +606,13 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
           startDate: currentBand.startDate,
           endDate: currentBand.endDate,
         } : undefined}
+      />
+
+      {/* Duplicate Block Dialog */}
+      <DuplicateBlockDialog
+        open={showDuplicate}
+        onOpenChange={setShowDuplicate}
+        block={block}
       />
     </>
   );

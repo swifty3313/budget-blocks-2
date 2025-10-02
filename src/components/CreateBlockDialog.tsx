@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Plus, Trash2, GripVertical, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
@@ -16,6 +16,7 @@ import type { BlockType, Row } from "@/types";
 import { DatePickerField } from "@/components/shared/DatePickerField";
 import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
+import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 
 interface CreateBlockDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
   const [date, setDate] = useState<Date>(new Date());
   const [defaultOwner, setDefaultOwner] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
+  const [showInsertBills, setShowInsertBills] = useState(false);
   
   // Flow allocation state
   const [basisSource, setBasisSource] = useState<'band' | 'manual' | 'calculator'>('band');
@@ -115,6 +117,12 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
     if (!trimmed) return;
     addToMasterList(list, trimmed);
     toast.success(`Added "${trimmed}" to ${list}`);
+  };
+
+  const handleInsertBills = (newRows: Row[]) => {
+    setRows([...rows, ...newRows]);
+    setShowInsertBills(false);
+    toast.success(`Inserted ${newRows.length} bill(s)`);
   };
 
   const calculateTotal = () => {
@@ -257,6 +265,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
   const filteredTemplates = library.filter((t) => t.type === blockType);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -373,10 +382,22 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-base font-semibold">Transactions</Label>
-                <Button size="sm" onClick={addRow}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Row
-                </Button>
+                <div className="flex gap-2">
+                  {blockType === 'Fixed Bill' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowInsertBills(true)}
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Insert Bills
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={addRow}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Row
+                  </Button>
+                </div>
               </div>
 
               <div className="border rounded-lg overflow-x-auto">
@@ -657,5 +678,21 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* Insert Bills Dialog (Fixed Bill only) */}
+    <PickFixedBillsDialog
+      open={showInsertBills}
+      onOpenChange={setShowInsertBills}
+      band={bandId ? {
+        id: bandId,
+        title: bandInfo.title,
+        startDate: bandInfo.startDate,
+        endDate: bandInfo.endDate,
+        order: 0,
+      } : null}
+      onInsert={handleInsertBills}
+      onManageLibrary={() => {}}
+    />
+    </>
   );
 }
