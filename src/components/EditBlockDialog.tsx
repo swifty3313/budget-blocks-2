@@ -15,6 +15,7 @@ import type { Block, Row, BlockType } from "@/types";
 import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
 import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
+import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
 import { DatePickerField } from "@/components/shared/DatePickerField";
 import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
@@ -49,6 +50,7 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
   const [showInsertBills, setShowInsertBills] = useState(false);
   const [showApplyAllocation, setShowApplyAllocation] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
+  const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   
   // Flow allocation state
   const [basisSource, setBasisSource] = useState<'band' | 'manual'>('band');
@@ -565,14 +567,18 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
 
           <DialogFooter className="flex items-center justify-between">
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleDuplicate}>
-                Duplicate to...
-              </Button>
               <Button variant="destructive" onClick={handleDelete}>
                 Delete Block
               </Button>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={handleDuplicate}>
+                Duplicate to...
+              </Button>
+              <Button variant="outline" onClick={() => setShowSaveAsTemplate(true)}>
+                <FileText className="w-4 h-4 mr-2" />
+                Save to Library
+              </Button>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
@@ -613,6 +619,19 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
         open={showDuplicate}
         onOpenChange={setShowDuplicate}
         block={block}
+      />
+
+      {/* Save as Template Dialog */}
+      <SaveAsTemplateDialog
+        open={showSaveAsTemplate}
+        onOpenChange={setShowSaveAsTemplate}
+        block={block ? {
+          ...block,
+          title,
+          date,
+          rows,
+          allocationBasisValue: blockType === 'Flow' ? allocationBasis : undefined,
+        } : null}
       />
     </>
   );

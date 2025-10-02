@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useStore } from "@/lib/store";
-import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Plus, Receipt } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, Calendar, Settings, Trash2, Plus, Receipt, FileText } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, differenceInMonths, isWithinInterval } from "date-fns";
 import { toast } from "sonner";
@@ -21,6 +21,8 @@ import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
 import { QuickExpenseDialog } from "@/components/QuickExpenseDialog";
 import { CreateBlockDialog } from "@/components/CreateBlockDialog";
 import { EditBlockDialog } from "@/components/EditBlockDialog";
+import { BlockTypeChooserDialog } from "@/components/BlockTypeChooserDialog";
+import { TemplateChooserDialog } from "@/components/TemplateChooserDialog";
 import type { Block, PayPeriodBand, Row, BlockType } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 
@@ -77,6 +79,8 @@ export function LedgerPanel({
   const [quickExpenseBand, setQuickExpenseBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
   const [lastInsertedBlockId, setLastInsertedBlockId] = useState<string | null>(null);
   const [createBlockBand, setCreateBlockBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date; type: BlockType; availableToAllocate?: number } | null>(null);
+  const [blockTypeChooserBand, setBlockTypeChooserBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date; availableToAllocate?: number } | null>(null);
+  const [templateChooserBand, setTemplateChooserBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date; availableToAllocate?: number } | null>(null);
   
   
   // Filter state - persisted to localStorage
@@ -710,24 +714,42 @@ export function LedgerPanel({
                   {(() => {
                     const filteredBlocks = getFilteredBlocks(summary.bandId);
                     if (filteredBlocks.length === 0) {
-                      return (
+                    return (
                         <div className="text-center py-8">
                           <p className="text-sm text-muted-foreground mb-3">
                             {hasActiveFilters ? 'No blocks match filters' : 'No blocks in this period'}
                           </p>
-                          {onNewBlockInBand && !hasActiveFilters && (
-                            <Button
-                              size="sm"
-                              variant="default"
-                              onClick={() => onNewBlockInBand(summary.bandId, {
-                                title: summary.title,
-                                startDate: summary.startDate,
-                                endDate: summary.endDate,
-                              })}
-                            >
-                              <Calendar className="w-4 h-4 mr-2" />
-                              Create First Block
-                            </Button>
+                          {!hasActiveFilters && (
+                            <div className="flex gap-2 justify-center">
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => setBlockTypeChooserBand({
+                                  id: summary.bandId,
+                                  title: summary.title,
+                                  startDate: summary.startDate,
+                                  endDate: summary.endDate,
+                                  availableToAllocate: summary.availableToAllocate,
+                                })}
+                              >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Create First Block
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setTemplateChooserBand({
+                                  id: summary.bandId,
+                                  title: summary.title,
+                                  startDate: summary.startDate,
+                                  endDate: summary.endDate,
+                                  availableToAllocate: summary.availableToAllocate,
+                                })}
+                              >
+                                <FileText className="w-4 h-4 mr-2" />
+                                Insert from Template
+                              </Button>
+                            </div>
                           )}
                         </div>
                       );
@@ -1037,6 +1059,54 @@ export function LedgerPanel({
           bandInfo={createBlockBand}
           blockType={createBlockBand.type}
           availableToAllocate={createBlockBand.availableToAllocate}
+        />
+      )}
+
+      {/* Block Type Chooser Dialog */}
+      {blockTypeChooserBand && (
+        <BlockTypeChooserDialog
+          open={blockTypeChooserBand !== null}
+          onOpenChange={(open) => !open && setBlockTypeChooserBand(null)}
+          onSelectType={(type) => {
+            if (type === 'Transaction') {
+              setQuickExpenseBand(blockTypeChooserBand);
+            } else {
+              setCreateBlockBand({
+                ...blockTypeChooserBand,
+                type: type as BlockType,
+              });
+            }
+            setBlockTypeChooserBand(null);
+          }}
+          bandTitle={blockTypeChooserBand.title}
+        />
+      )}
+
+      {/* Template Chooser Dialog */}
+      {templateChooserBand && (
+        <TemplateChooserDialog
+          open={templateChooserBand !== null}
+          onOpenChange={(open) => !open && setTemplateChooserBand(null)}
+          onSelectTemplate={(template) => {
+            // Insert the template into the band
+            addBlock({
+              type: template.type,
+              title: template.title,
+              date: templateChooserBand.startDate,
+              tags: template.tags || [],
+              rows: template.rows.map((r: Row) => ({
+                ...r,
+                id: uuidv4(),
+                date: templateChooserBand.startDate,
+                executed: false,
+              })),
+              bandId: templateChooserBand.id,
+            });
+            
+            toast.success(`Inserted '${template.title}' (${template.rows.length} rows)`);
+            setTemplateChooserBand(null);
+          }}
+          bandTitle={templateChooserBand.title}
         />
       )}
 
