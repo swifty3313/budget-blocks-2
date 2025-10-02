@@ -171,7 +171,7 @@ export interface AppState {
   
   addBand: (band: Omit<PayPeriodBand, 'id'>) => void;
   updateBand: (id: string, updates: Partial<PayPeriodBand>) => void;
-  deleteBand: (id: string) => void;
+  deleteBand: (id: string) => string;
   archiveBand: (id: string) => void;
   unarchiveBand: (id: string) => void;
   reassignBlocksToBands: () => number; // Returns count of reassigned blocks

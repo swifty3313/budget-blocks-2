@@ -10,6 +10,8 @@ import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
 import type { PayPeriodBand } from "@/types";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { showUndoToast } from "@/lib/undoToast";
 
 interface BandSettingsDialogProps {
   bandId: string | null;
@@ -50,6 +52,7 @@ export function BandSettingsDialog({ bandId, open, onOpenChange }: BandSettingsD
   const [endDate, setEndDate] = useState(currentBand ? format(currentBand.endDate, 'yyyy-MM-dd') : "");
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showSimpleDeleteConfirm, setShowSimpleDeleteConfirm] = useState(false);
   const [deleteAction, setDeleteAction] = useState<'move' | 'delete'>('move');
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
@@ -113,19 +116,22 @@ export function BandSettingsDialog({ bandId, open, onOpenChange }: BandSettingsD
     if (!bandId) return;
 
     const bandBlocks = blocks.filter(b => b.bandId === bandId);
-    const hasExecuted = bandBlocks.some(b => b.rows.some(r => r.executed));
 
     if (bandBlocks.length > 0) {
       // Show block handling dialog
       setShowDeleteDialog(true);
     } else {
-      // No blocks, just delete
-      if (confirm("Delete this band?")) {
-        deleteBand(bandId);
-        toast.success("Band deleted");
-        onOpenChange(false);
-      }
+      // No blocks, show simple delete confirm
+      setShowSimpleDeleteConfirm(true);
     }
+  };
+
+  const handleSimpleDelete = () => {
+    if (!bandId) return;
+    
+    const historyId = deleteBand(bandId);
+    showUndoToast('band', historyId, currentBand?.title);
+    onOpenChange(false);
   };
 
   const handleConfirmDelete = () => {
@@ -145,17 +151,18 @@ export function BandSettingsDialog({ bandId, open, onOpenChange }: BandSettingsD
       bandBlocks.forEach(block => {
         moveBlockToBand(block.id, undefined as any);
       });
-      toast.success(`Band deleted. ${bandBlocks.length} block(s) moved to Unassigned.`);
+      toast.success(`${bandBlocks.length} block(s) moved to Unassigned.`);
     } else {
       // Delete blocks
       bandBlocks.forEach(block => {
         deleteBlock(block.id);
       });
-      toast.success(`Band and ${bandBlocks.length} block(s) deleted.`);
+      toast.success(`${bandBlocks.length} block(s) deleted.`);
     }
     
     // Delete band
-    deleteBand(bandId);
+    const historyId = deleteBand(bandId);
+    showUndoToast('band', historyId, currentBand?.title);
 
     // Reset state
     setShowDeleteDialog(false);
@@ -237,7 +244,15 @@ export function BandSettingsDialog({ bandId, open, onOpenChange }: BandSettingsD
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Simple Delete Confirmation */}
+      <DeleteConfirmDialog
+        open={showSimpleDeleteConfirm}
+        onOpenChange={setShowSimpleDeleteConfirm}
+        onConfirm={handleSimpleDelete}
+        type="band"
+      />
+
+      {/* Delete Confirmation Dialog for bands with blocks */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader>

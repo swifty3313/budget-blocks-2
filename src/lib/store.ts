@@ -210,7 +210,7 @@ export const useStore = create<AppState>()(
       deleteBand: (id) => {
         const { bands, blocks, undoHistory } = get();
         const band = bands.find((b) => b.id === id);
-        if (!band) return;
+        if (!band) return '';
 
         // Snapshot blocks in this band
         const affectedBlocks = blocks.filter((b) => b.bandId === id);
@@ -230,6 +230,8 @@ export const useStore = create<AppState>()(
           ),
           undoHistory: [...state.undoHistory, historyItem],
         }));
+
+        return historyItem.id;
       },
 
       archiveBand: (id) => {
