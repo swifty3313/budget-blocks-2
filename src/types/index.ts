@@ -62,6 +62,8 @@ export interface Block {
   bandId?: string; // Auto-assigned based on date or user selection
   recurrence?: RecurrenceRule; // Only for templates in library
   isTemplate?: boolean;
+  allocationBasisPreference?: 'none' | 'band' | 'manual' | 'calculator'; // For Flow templates only
+  allocationBasisValue?: number; // For manual/calculator basis in Flow templates
   createdAt: Date;
   updatedAt: Date;
 }
@@ -132,6 +134,11 @@ export interface AppState {
   
   // UI State
   groupBasesByType: boolean;
+  templatePreferences: {
+    dontOfferForIncome: boolean;
+    dontOfferForFixed: boolean;
+    dontOfferForFlow: boolean;
+  };
   
   // Actions
   addBase: (base: Omit<Base, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -167,6 +174,8 @@ export interface AppState {
   undoExecuteRow: (blockId: string, rowId: string) => void;
   
   addToMasterList: (type: 'owners' | 'categories' | 'vendors' | 'institutions' | 'baseTypes' | 'flowTypes', value: string) => void;
+  
+  updateTemplatePreference: (blockType: BlockType, dontOffer: boolean) => void;
   
   exportData: () => string;
   importData: (json: string) => void;

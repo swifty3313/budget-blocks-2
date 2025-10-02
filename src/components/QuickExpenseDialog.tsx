@@ -10,10 +10,12 @@ import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { isWithinInterval, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
-import type { Row } from "@/types";
+import type { Row, Block } from "@/types";
 import { DatePickerField } from "@/components/shared/DatePickerField";
 import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
+import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
+import { showPostInsertToast } from "@/lib/postInsertToast";
 
 interface QuickExpenseDialogProps {
   open: boolean;
@@ -28,6 +30,8 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
   const categories = useStore((state) => state.categories);
   const addBlock = useStore((state) => state.addBlock);
   const addToMasterList = useStore((state) => state.addToMasterList);
+  const templatePreferences = useStore((state) => state.templatePreferences);
+  const updateTemplatePreference = useStore((state) => state.updateTemplatePreference);
 
   const [owner, setOwner] = useState("");
   const [source, setSource] = useState("");
@@ -40,6 +44,8 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
   const [notes, setNotes] = useState("");
   const [execute, setExecute] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false);
+  const [lastInsertedBlock, setLastInsertedBlock] = useState<Block | null>(null);
 
   // Initialize with band start date and first owner
   useEffect(() => {
@@ -126,11 +132,43 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
         bandId,
       });
 
+      // Create the block object for the toast
+      const insertedBlock: Block = {
+        id: '',
+        type: 'Flow',
+        title: source,
+        date,
+        tags: [],
+        rows: [row],
+        bandId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
       toast.success(executeImmediately ? "Expense added and executed" : "Expense added");
       
       // Reset form
       resetForm();
       onOpenChange(false);
+      
+      // Show post-insert snackbar if not disabled for Flow type
+      if (!templatePreferences.dontOfferForFlow) {
+        setLastInsertedBlock(insertedBlock);
+        setTimeout(() => {
+          showPostInsertToast({
+            block: insertedBlock,
+            blockType: 'Flow',
+            blockTitle: source,
+            onSaveAsTemplate: () => {
+              setSaveTemplateDialogOpen(true);
+            },
+            onDontOfferAgain: () => {
+              updateTemplatePreference('Flow', true);
+              toast.info(`Won't offer template save for Flow blocks anymore`);
+            },
+          });
+        }, 300);
+      }
     } catch (error) {
       console.error('Failed to create expense', error);
       toast.error(`Couldn't create expense: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -153,6 +191,7 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -303,5 +342,12 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    
+    <SaveAsTemplateDialog
+      open={saveTemplateDialogOpen}
+      onOpenChange={setSaveTemplateDialogOpen}
+      block={lastInsertedBlock}
+    />
+    </>
   );
 }

@@ -30,6 +30,11 @@ export const useStore = create<AppState>()(
       baseTypes: ['Checking', 'Savings', 'Credit', 'Loan', 'Vault', 'Goal'],
       flowTypes: ['Transfer', 'Payment', 'Expense', 'Reimbursement'],
       groupBasesByType: false,
+      templatePreferences: {
+        dontOfferForIncome: false,
+        dontOfferForFixed: false,
+        dontOfferForFlow: false,
+      },
 
       // Base actions
       addBase: (base) => {
@@ -374,6 +379,18 @@ export const useStore = create<AppState>()(
         });
       },
 
+      // Template preference actions
+      updateTemplatePreference: (blockType, dontOffer) => {
+        set((state) => ({
+          templatePreferences: {
+            ...state.templatePreferences,
+            dontOfferForIncome: blockType === 'Income' ? dontOffer : state.templatePreferences.dontOfferForIncome,
+            dontOfferForFixed: blockType === 'Fixed Bill' ? dontOffer : state.templatePreferences.dontOfferForFixed,
+            dontOfferForFlow: blockType === 'Flow' ? dontOffer : state.templatePreferences.dontOfferForFlow,
+          },
+        }));
+      },
+
       // Data actions
       exportData: () => {
         const state = get();
@@ -390,6 +407,7 @@ export const useStore = create<AppState>()(
           institutions: state.institutions,
           baseTypes: state.baseTypes,
           flowTypes: state.flowTypes,
+          templatePreferences: state.templatePreferences,
         }, null, 2);
       },
 
@@ -409,6 +427,11 @@ export const useStore = create<AppState>()(
             institutions: data.institutions || [],
             baseTypes: data.baseTypes || [],
             flowTypes: data.flowTypes || [],
+            templatePreferences: data.templatePreferences || {
+              dontOfferForIncome: false,
+              dontOfferForFixed: false,
+              dontOfferForFlow: false,
+            },
           });
         } catch (error) {
           console.error('Failed to import data:', error);
@@ -429,6 +452,11 @@ export const useStore = create<AppState>()(
           institutions: [],
           baseTypes: ['Checking', 'Savings', 'Credit', 'Loan', 'Vault', 'Goal'],
           flowTypes: ['Transfer', 'Payment', 'Expense', 'Reimbursement'],
+          templatePreferences: {
+            dontOfferForIncome: false,
+            dontOfferForFixed: false,
+            dontOfferForFlow: false,
+          },
         });
       },
     }),

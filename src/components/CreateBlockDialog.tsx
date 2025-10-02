@@ -12,11 +12,13 @@ import { Plus, Trash2, GripVertical, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
-import type { BlockType, Row } from "@/types";
+import type { BlockType, Row, Block } from "@/types";
 import { DatePickerField } from "@/components/shared/DatePickerField";
 import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
 import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
+import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
+import { showPostInsertToast } from "@/lib/postInsertToast";
 
 interface CreateBlockDialogProps {
   open: boolean;
@@ -38,6 +40,8 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
   const addBlock = useStore((state) => state.addBlock);
   const saveToLibrary = useStore((state) => state.saveToLibrary);
   const addToMasterList = useStore((state) => state.addToMasterList);
+  const templatePreferences = useStore((state) => state.templatePreferences);
+  const updateTemplatePreference = useStore((state) => state.updateTemplatePreference);
 
   const [activeTab, setActiveTab] = useState<"new" | "templates">("new");
   const [title, setTitle] = useState("");
@@ -45,6 +49,8 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
   const [defaultOwner, setDefaultOwner] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
   const [showInsertBills, setShowInsertBills] = useState(false);
+  const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false);
+  const [lastInsertedBlock, setLastInsertedBlock] = useState<Block | null>(null);
   
   // Flow allocation state
   const [basisSource, setBasisSource] = useState<'band' | 'manual' | 'calculator'>('band');
@@ -226,9 +232,47 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
           bandId,
         });
         
+        // Create the block object for the toast
+        const insertedBlock: Block = {
+          id: '', // Will be assigned by store
+          type: blockType,
+          title: title.trim(),
+          date,
+          tags: [],
+          rows: rows,
+          bandId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          allocationBasisValue: basisSource === 'calculator' ? calculatorBasis : (basisSource === 'manual' ? manualBasis : undefined),
+        };
+        
         toast.success("Block created");
         resetForm();
         onOpenChange(false);
+        
+        // Show post-insert snackbar if not disabled for this type
+        const shouldOffer = 
+          (blockType === 'Income' && !templatePreferences.dontOfferForIncome) ||
+          (blockType === 'Fixed Bill' && !templatePreferences.dontOfferForFixed) ||
+          (blockType === 'Flow' && !templatePreferences.dontOfferForFlow);
+          
+        if (shouldOffer) {
+          setLastInsertedBlock(insertedBlock);
+          setTimeout(() => {
+            showPostInsertToast({
+              block: insertedBlock,
+              blockType,
+              blockTitle: title.trim(),
+              onSaveAsTemplate: () => {
+                setSaveTemplateDialogOpen(true);
+              },
+              onDontOfferAgain: () => {
+                updateTemplatePreference(blockType, true);
+                toast.info(`Won't offer template save for ${blockType} blocks anymore`);
+              },
+            });
+          }, 300);
+        }
       }
     } catch (error) {
       console.error('Failed to save block', error);
@@ -679,6 +723,12 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
       </DialogContent>
     </Dialog>
 
+    <SaveAsTemplateDialog
+      open={saveTemplateDialogOpen}
+      onOpenChange={setSaveTemplateDialogOpen}
+      block={lastInsertedBlock}
+    />
+    
     {/* Insert Bills Dialog (Fixed Bill only) */}
     <PickFixedBillsDialog
       open={showInsertBills}
