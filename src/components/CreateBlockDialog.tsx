@@ -167,10 +167,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
           toast.error("Flow rows must have a source (From Base)");
           return;
         }
-        if (!row.category?.trim()) {
-          toast.error("Flow rows must have a category (required for Flow blocks)");
-          return;
-        }
+        // Category is optional for Flow rows
         // Validate basis for % rows
         if (row.flowMode === '%') {
           if (!allocationBasis || allocationBasis <= 0) {

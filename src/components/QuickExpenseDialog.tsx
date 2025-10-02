@@ -242,8 +242,8 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
 
           {/* Category */}
           <div className="space-y-2">
-            <Label>Category *</Label>
-            <CategorySelect value={category} onValueChange={setCategory} required />
+            <Label>Category</Label>
+            <CategorySelect value={category} onValueChange={setCategory} />
           </div>
 
           {/* Date */}

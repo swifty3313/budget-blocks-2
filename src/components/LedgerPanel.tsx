@@ -698,7 +698,7 @@ export function LedgerPanel({
                         className="flex-1"
                       >
                         <Plus className="w-4 h-4 mr-2" />
-                        Add Expense
+                        Add Transaction
                       </Button>
                     </div>
                   </div>
@@ -851,7 +851,6 @@ export function LedgerPanel({
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="flex-1"
                                   onClick={() => setManageBlock(block)}
                                 >
                                   <Settings className="w-4 h-4 mr-2" />
