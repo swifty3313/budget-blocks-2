@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
 import { Plus, Trash2, GripVertical, FileText } from "lucide-react";
 import { toast } from "sonner";
@@ -22,9 +23,10 @@ interface EditBlockDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDelete?: (block: Block) => void;
+  availableToAllocate?: number; // Band's Expected Income - Expected Fixed
 }
 
-export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlockDialogProps) {
+export function EditBlockDialog({ block, open, onOpenChange, onDelete, availableToAllocate }: EditBlockDialogProps) {
   if (!block) return null;
 
   const bases = useStore((state) => state.bases);
@@ -37,23 +39,41 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
   const undoExecuteRow = useStore((state) => state.undoExecuteRow);
   const addToMasterList = useStore((state) => state.addToMasterList);
 
+  const blockType = block.type as BlockType;
+  const currentBand = bands.find(b => b.id === block.bandId);
+
   const [rows, setRows] = useState<Row[]>([]);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState<Date>(new Date());
   const [showInsertBills, setShowInsertBills] = useState(false);
   const [showApplyAllocation, setShowApplyAllocation] = useState(false);
-  const [allocationBasis, setAllocationBasis] = useState<number>(0);
-
-  const blockType = block.type as BlockType;
-  const currentBand = bands.find(b => b.id === block.bandId);
+  
+  // Flow allocation state
+  const [basisSource, setBasisSource] = useState<'band' | 'manual'>('band');
+  const [manualBasis, setManualBasis] = useState<number>(0);
+  
+  // Computed basis based on source
+  const allocationBasis = blockType === 'Flow' 
+    ? (basisSource === 'band' ? (availableToAllocate || 0) : manualBasis)
+    : 0;
 
   useEffect(() => {
     if (open && block) {
       setRows(block.rows);
       setTitle(block.title);
       setDate(block.date);
+      
+      // Initialize basis source for Flow blocks
+      if (blockType === 'Flow') {
+        if (availableToAllocate !== undefined) {
+          setBasisSource('band');
+        } else {
+          setBasisSource('manual');
+          setManualBasis(0);
+        }
+      }
     }
-  }, [open, block]);
+  }, [open, block, availableToAllocate, blockType]);
 
   const addRow = () => {
     const newRow: Row = {
@@ -141,6 +161,13 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
         if (!row.category?.trim()) {
           toast.error("Flow rows must have a category (required for Flow blocks)");
           return;
+        }
+        // Validate basis for % rows
+        if (row.flowMode === '%') {
+          if (!allocationBasis || allocationBasis <= 0) {
+            toast.error("Allocation Basis is required for percentage-based rows");
+            return;
+          }
         }
       }
     }
@@ -241,7 +268,9 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
 
           <div className="space-y-4">
             {/* Block Header Fields */}
-            <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/30">
+            <div className="flex gap-4">
+              <div className={blockType === 'Flow' ? 'flex-1 grid grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/30' : 'flex-1 grid grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/30'}>
+              
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input
@@ -249,16 +278,71 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <DatePickerField
-                  value={date}
-                  onChange={setDate}
-                  bandStart={currentBand?.startDate}
-                  bandEnd={currentBand?.endDate}
-                  className="w-full"
-                />
+                <div className="space-y-2">
+                  <Label>Date</Label>
+                  <DatePickerField
+                    value={date}
+                    onChange={setDate}
+                    bandStart={currentBand?.startDate}
+                    bandEnd={currentBand?.endDate}
+                    className="w-full"
+                  />
+                </div>
               </div>
+
+              {/* Allocation Basis Panel (Flow only) */}
+              {blockType === 'Flow' && (
+                <div className="w-[280px] p-4 border rounded-lg bg-muted/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold">Allocation Basis</Label>
+                    <Badge variant="secondary" className="text-xs">Used for % rows</Badge>
+                  </div>
+                  
+                  {availableToAllocate !== undefined && (
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Band Available</Label>
+                      <div className="px-3 py-2 rounded-md bg-background text-sm font-medium">
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(availableToAllocate)}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Basis Source</Label>
+                    <Select value={basisSource} onValueChange={(v: 'band' | 'manual') => setBasisSource(v)}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableToAllocate !== undefined && (
+                          <SelectItem value="band">Band Available</SelectItem>
+                        )}
+                        <SelectItem value="manual">Manual Amount</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {basisSource === 'manual' && (
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Manual Basis</Label>
+                      <Input
+                        type="number"
+                        value={manualBasis}
+                        onChange={(e) => setManualBasis(parseFloat(e.target.value) || 0)}
+                        placeholder="Enter amount"
+                        className="h-9"
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="pt-2 border-t space-y-1">
+                    <Label className="text-xs text-muted-foreground">Active Basis</Label>
+                    <div className="px-3 py-2 rounded-md bg-primary/10 text-sm font-bold">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(allocationBasis)}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Transactions Table */}
@@ -449,34 +533,47 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
               </div>
             </div>
 
-            {/* Footer Totals */}
-            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
-              <div className="flex gap-6">
-                <div>
-                  <span className="text-sm text-muted-foreground">Total:</span>
-                  <span className="ml-2 text-lg font-bold">
-                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(calculateTotal())}
-                  </span>
+            {/* Footer Totals / Flow Summary */}
+            {blockType === 'Flow' ? (
+              <div className="p-4 border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold">Flow Summary</span>
+                  <span className="text-sm text-muted-foreground">{rows.length} row(s)</span>
                 </div>
-                {blockType === 'Flow' && allocationBasis > 0 && (
-                  <>
-                    <div>
-                      <span className="text-sm text-muted-foreground">Allocated:</span>
-                      <span className="ml-2 text-lg font-bold">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(calculateFlowAllocated())}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-sm text-muted-foreground">Remaining:</span>
-                      <span className="ml-2 text-lg font-bold">
-                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(calculateFlowRemaining())}
-                      </span>
-                    </div>
-                  </>
-                )}
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Basis</p>
+                    <p className="text-lg font-bold">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(allocationBasis)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Allocated</p>
+                    <p className="text-lg font-bold text-accent">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(calculateFlowAllocated())}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-1">Remaining</p>
+                    <p className={`text-lg font-bold ${calculateFlowRemaining() >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(calculateFlowRemaining())}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <span className="text-sm text-muted-foreground">{rows.length} row(s)</span>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                <div className="flex gap-6">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Total:</span>
+                    <span className="ml-2 text-lg font-bold">
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(calculateTotal())}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-sm text-muted-foreground">{rows.length} row(s)</span>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex items-center justify-between">

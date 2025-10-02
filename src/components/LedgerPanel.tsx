@@ -76,7 +76,7 @@ export function LedgerPanel({
   const [showManageBills, setShowManageBills] = useState(false);
   const [quickExpenseBand, setQuickExpenseBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
   const [lastInsertedBlockId, setLastInsertedBlockId] = useState<string | null>(null);
-  const [createBlockBand, setCreateBlockBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date; type: BlockType } | null>(null);
+  const [createBlockBand, setCreateBlockBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date; type: BlockType; availableToAllocate?: number } | null>(null);
   
   
   // Filter state - persisted to localStorage
@@ -675,6 +675,7 @@ export function LedgerPanel({
                             startDate: summary.startDate,
                             endDate: summary.endDate,
                             type: 'Flow',
+                            availableToAllocate: summary.availableToAllocate,
                           });
                         }}
                         className="flex-1"
@@ -923,6 +924,9 @@ export function LedgerPanel({
         open={!!manageBlock}
         onOpenChange={(open) => !open && setManageBlock(null)}
         onDelete={(block) => setDeleteConfirm(block)}
+        availableToAllocate={
+          manageBlock ? bandSummaries.find(s => s.bandId === manageBlock.bandId)?.availableToAllocate : undefined
+        }
       />
 
       {/* First confirmation dialog - always shown */}
@@ -1042,6 +1046,7 @@ export function LedgerPanel({
           bandId={createBlockBand.id}
           bandInfo={createBlockBand}
           blockType={createBlockBand.type}
+          availableToAllocate={createBlockBand.availableToAllocate}
         />
       )}
 
