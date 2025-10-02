@@ -101,6 +101,21 @@ export interface PaySchedule {
   createdAt: Date;
 }
 
+export interface Owner {
+  id: string;
+  name: string;
+  order: number;
+  createdAt: Date;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  color: string;
+  order: number;
+  createdAt: Date;
+}
+
 export interface FixedBill {
   id: string;
   owner: string;
@@ -123,7 +138,9 @@ export type UndoableEntity =
   | { type: 'band'; data: PayPeriodBand; blocksSnapshot: Block[] }
   | { type: 'template'; data: Block }
   | { type: 'schedule'; data: PaySchedule }
-  | { type: 'fixedBill'; data: FixedBill };
+  | { type: 'fixedBill'; data: FixedBill }
+  | { type: 'owner'; data: Owner; reassignments?: { blockId: string; rowId: string; oldOwnerId: string }[] }
+  | { type: 'category'; data: Category; reassignments?: { blockId: string; rowId: string; oldCategoryId: string | undefined }[] };
 
 export interface UndoHistoryItem {
   id: string;
@@ -140,13 +157,17 @@ export interface AppState {
   schedules: PaySchedule[];
   fixedBills: FixedBill[];
   
-  // Master lists
+  // Master lists (legacy string arrays for backward compatibility)
   owners: string[];
   categories: string[];
   vendors: string[];
   institutions: string[];
   baseTypes: BaseType[];
   flowTypes: FlowRowType[];
+  
+  // New entity-based lists
+  ownerEntities: Owner[];
+  categoryEntities: Category[];
   
   // UI State
   groupBasesByType: boolean;
@@ -191,6 +212,17 @@ export interface AppState {
   undoExecuteRow: (blockId: string, rowId: string) => void;
   
   addToMasterList: (type: 'owners' | 'categories' | 'vendors' | 'institutions' | 'baseTypes' | 'flowTypes', value: string) => void;
+  
+  // Owner/Category entity actions
+  addOwner: (name: string) => void;
+  updateOwner: (id: string, updates: Partial<Owner>) => void;
+  deleteOwner: (id: string, reassignToId: string | undefined) => string;
+  reorderOwners: (ownerIds: string[]) => void;
+  
+  addCategory: (name: string) => void;
+  updateCategory: (id: string, updates: Partial<Category>) => void;
+  deleteCategory: (id: string, reassignToId: string | null | undefined) => string;
+  reorderCategories: (categoryIds: string[]) => void;
   
   updateTemplatePreference: (blockType: BlockType, dontOffer: boolean) => void;
   

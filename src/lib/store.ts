@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
-import type { AppState, Base, Block, PayPeriodBand, Row, KPIData, BandSummary, PaySchedule, FixedBill, UndoHistoryItem } from '@/types';
+import type { AppState, Base, Block, PayPeriodBand, Row, KPIData, BandSummary, PaySchedule, FixedBill, UndoHistoryItem, Owner, Category } from '@/types';
 
 // Helper to calculate block total
 const calculateBlockTotal = (rows: Row[]): number => {
@@ -29,6 +29,8 @@ export const useStore = create<AppState>()(
       institutions: [],
       baseTypes: ['Checking', 'Savings', 'Credit', 'Loan', 'Vault', 'Goal'],
       flowTypes: ['Transfer', 'Payment', 'Expense', 'Reimbursement'],
+      ownerEntities: [],
+      categoryEntities: [],
       groupBasesByType: false,
       templatePreferences: {
         dontOfferForIncome: false,
@@ -469,6 +471,166 @@ export const useStore = create<AppState>()(
         });
       },
 
+      // Owner entity actions
+      addOwner: (name) => {
+        const newOwner: Owner = {
+          id: uuidv4(),
+          name,
+          order: get().ownerEntities.length,
+          createdAt: new Date(),
+        };
+        set((state) => ({
+          ownerEntities: [...state.ownerEntities, newOwner],
+        }));
+      },
+
+      updateOwner: (id, updates) => {
+        set((state) => ({
+          ownerEntities: state.ownerEntities.map((o) =>
+            o.id === id ? { ...o, ...updates } : o
+          ),
+        }));
+      },
+
+      deleteOwner: (id, reassignToId) => {
+        const { ownerEntities, blocks, library, undoHistory } = get();
+        const owner = ownerEntities.find((o) => o.id === id);
+        if (!owner) return '';
+
+        // Track reassignments for undo
+        const reassignments: { blockId: string; rowId: string; oldOwnerId: string }[] = [];
+
+        // Update blocks
+        const updatedBlocks = blocks.map((block) => ({
+          ...block,
+          rows: block.rows.map((row) => {
+            if (row.owner === id) {
+              reassignments.push({ blockId: block.id, rowId: row.id, oldOwnerId: id });
+              return { ...row, owner: reassignToId || '' };
+            }
+            return row;
+          }),
+        }));
+
+        // Update library
+        const updatedLibrary = library.map((template) => ({
+          ...template,
+          rows: template.rows.map((row) => {
+            if (row.owner === id) {
+              return { ...row, owner: reassignToId || '' };
+            }
+            return row;
+          }),
+        }));
+
+        // Add to undo history
+        const historyItem: UndoHistoryItem = {
+          id: uuidv4(),
+          entity: { type: 'owner', data: owner, reassignments },
+          timestamp: new Date(),
+          label: `Owner: ${owner.name}`,
+        };
+
+        set({
+          ownerEntities: ownerEntities.filter((o) => o.id !== id),
+          blocks: updatedBlocks,
+          library: updatedLibrary,
+          undoHistory: [...undoHistory, historyItem],
+        });
+
+        return historyItem.id;
+      },
+
+      reorderOwners: (ownerIds) => {
+        set((state) => ({
+          ownerEntities: state.ownerEntities.map((owner) => ({
+            ...owner,
+            order: ownerIds.indexOf(owner.id),
+          })),
+        }));
+      },
+
+      // Category entity actions
+      addCategory: (name) => {
+        const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#10b981', '#06b6d4'];
+        const newCategory: Category = {
+          id: uuidv4(),
+          name,
+          color: colors[get().categoryEntities.length % colors.length],
+          order: get().categoryEntities.length,
+          createdAt: new Date(),
+        };
+        set((state) => ({
+          categoryEntities: [...state.categoryEntities, newCategory],
+        }));
+      },
+
+      updateCategory: (id, updates) => {
+        set((state) => ({
+          categoryEntities: state.categoryEntities.map((c) =>
+            c.id === id ? { ...c, ...updates } : c
+          ),
+        }));
+      },
+
+      deleteCategory: (id, reassignToId) => {
+        const { categoryEntities, blocks, library, undoHistory } = get();
+        const category = categoryEntities.find((c) => c.id === id);
+        if (!category) return '';
+
+        // Track reassignments for undo
+        const reassignments: { blockId: string; rowId: string; oldCategoryId: string | undefined }[] = [];
+
+        // Update blocks
+        const updatedBlocks = blocks.map((block) => ({
+          ...block,
+          rows: block.rows.map((row) => {
+            if (row.category === id) {
+              reassignments.push({ blockId: block.id, rowId: row.id, oldCategoryId: id });
+              return { ...row, category: reassignToId === null ? undefined : reassignToId };
+            }
+            return row;
+          }),
+        }));
+
+        // Update library
+        const updatedLibrary = library.map((template) => ({
+          ...template,
+          rows: template.rows.map((row) => {
+            if (row.category === id) {
+              return { ...row, category: reassignToId === null ? undefined : reassignToId };
+            }
+            return row;
+          }),
+        }));
+
+        // Add to undo history
+        const historyItem: UndoHistoryItem = {
+          id: uuidv4(),
+          entity: { type: 'category', data: category, reassignments },
+          timestamp: new Date(),
+          label: `Category: ${category.name}`,
+        };
+
+        set({
+          categoryEntities: categoryEntities.filter((c) => c.id !== id),
+          blocks: updatedBlocks,
+          library: updatedLibrary,
+          undoHistory: [...undoHistory, historyItem],
+        });
+
+        return historyItem.id;
+      },
+
+      reorderCategories: (categoryIds) => {
+        set((state) => ({
+          categoryEntities: state.categoryEntities.map((category) => ({
+            ...category,
+            order: categoryIds.indexOf(category.id),
+          })),
+        }));
+      },
+
       // Template preference actions
       updateTemplatePreference: (blockType, dontOffer) => {
         set((state) => ({
@@ -533,6 +695,86 @@ export const useStore = create<AppState>()(
               undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
             }));
             break;
+          case 'owner':
+            set((state) => {
+              // Restore owner
+              const ownerEntities = [...state.ownerEntities, entity.data];
+              
+              // Restore original owner IDs
+              const blocks = state.blocks.map((block) => ({
+                ...block,
+                rows: block.rows.map((row) => {
+                  const reassignment = entity.reassignments?.find(
+                    (r) => r.blockId === block.id && r.rowId === row.id
+                  );
+                  if (reassignment) {
+                    return { ...row, owner: reassignment.oldOwnerId };
+                  }
+                  return row;
+                }),
+              }));
+
+              const library = state.library.map((template) => ({
+                ...template,
+                rows: template.rows.map((row) => {
+                  const reassignment = entity.reassignments?.find(
+                    (r) => r.blockId === template.id && r.rowId === row.id
+                  );
+                  if (reassignment) {
+                    return { ...row, owner: reassignment.oldOwnerId };
+                  }
+                  return row;
+                }),
+              }));
+
+              return {
+                ownerEntities,
+                blocks,
+                library,
+                undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
+              };
+            });
+            break;
+          case 'category':
+            set((state) => {
+              // Restore category
+              const categoryEntities = [...state.categoryEntities, entity.data];
+              
+              // Restore original category IDs
+              const blocks = state.blocks.map((block) => ({
+                ...block,
+                rows: block.rows.map((row) => {
+                  const reassignment = entity.reassignments?.find(
+                    (r) => r.blockId === block.id && r.rowId === row.id
+                  );
+                  if (reassignment) {
+                    return { ...row, category: reassignment.oldCategoryId };
+                  }
+                  return row;
+                }),
+              }));
+
+              const library = state.library.map((template) => ({
+                ...template,
+                rows: template.rows.map((row) => {
+                  const reassignment = entity.reassignments?.find(
+                    (r) => r.blockId === template.id && r.rowId === row.id
+                  );
+                  if (reassignment) {
+                    return { ...row, category: reassignment.oldCategoryId };
+                  }
+                  return row;
+                }),
+              }));
+
+              return {
+                categoryEntities,
+                blocks,
+                library,
+                undoHistory: state.undoHistory.filter((h) => h.id !== historyId),
+              };
+            });
+            break;
         }
 
         return true;
@@ -558,6 +800,8 @@ export const useStore = create<AppState>()(
           institutions: state.institutions,
           baseTypes: state.baseTypes,
           flowTypes: state.flowTypes,
+          ownerEntities: state.ownerEntities,
+          categoryEntities: state.categoryEntities,
           templatePreferences: state.templatePreferences,
         }, null, 2);
       },
@@ -578,6 +822,8 @@ export const useStore = create<AppState>()(
             institutions: data.institutions || [],
             baseTypes: data.baseTypes || [],
             flowTypes: data.flowTypes || [],
+            ownerEntities: data.ownerEntities || [],
+            categoryEntities: data.categoryEntities || [],
             templatePreferences: data.templatePreferences || {
               dontOfferForIncome: false,
               dontOfferForFixed: false,
@@ -604,6 +850,8 @@ export const useStore = create<AppState>()(
           institutions: [],
           baseTypes: ['Checking', 'Savings', 'Credit', 'Loan', 'Vault', 'Goal'],
           flowTypes: ['Transfer', 'Payment', 'Expense', 'Reimbursement'],
+          ownerEntities: [],
+          categoryEntities: [],
           templatePreferences: {
             dontOfferForIncome: false,
             dontOfferForFixed: false,
@@ -622,10 +870,77 @@ export const useStore = create<AppState>()(
           
           const { state } = JSON.parse(str);
           
-          // Convert date strings back to Date objects
+          // Migration: Convert old string-based owners/categories to entities
+          let ownerEntities: Owner[] = state.ownerEntities || [];
+          let categoryEntities: Category[] = state.categoryEntities || [];
+          const ownerMap = new Map<string, string>(); // old name -> new ID
+          const categoryMap = new Map<string, string>(); // old name -> new ID
+
+          // Migrate owners if entities don't exist but old array does
+          if (ownerEntities.length === 0 && state.owners && state.owners.length > 0) {
+            ownerEntities = state.owners.map((name: string, index: number) => {
+              const id = uuidv4();
+              ownerMap.set(name, id);
+              return {
+                id,
+                name,
+                order: index,
+                createdAt: new Date(),
+              };
+            });
+          } else {
+            // Build map for existing entities
+            ownerEntities.forEach(o => ownerMap.set(o.name, o.id));
+          }
+
+          // Migrate categories if entities don't exist but old array does
+          const colors = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#10b981', '#06b6d4'];
+          if (categoryEntities.length === 0 && state.categories && state.categories.length > 0) {
+            categoryEntities = state.categories.map((name: string, index: number) => {
+              const id = uuidv4();
+              categoryMap.set(name, id);
+              return {
+                id,
+                name,
+                color: colors[index % colors.length],
+                order: index,
+                createdAt: new Date(),
+              };
+            });
+          } else {
+            // Build map for existing entities
+            categoryEntities.forEach(c => categoryMap.set(c.name, c.id));
+          }
+
+          // Helper to migrate row references
+          const migrateRow = (row: any) => {
+            const migratedRow = { ...row };
+            
+            // Migrate owner reference
+            if (row.owner && typeof row.owner === 'string') {
+              const ownerId = ownerMap.get(row.owner);
+              if (ownerId) {
+                migratedRow.owner = ownerId;
+              }
+            }
+            
+            // Migrate category reference
+            if (row.category && typeof row.category === 'string') {
+              const categoryId = categoryMap.get(row.category);
+              if (categoryId) {
+                migratedRow.category = categoryId;
+              }
+            }
+            
+            return migratedRow;
+          };
+          
+          // Convert date strings back to Date objects and migrate references
           return {
             state: {
               ...state,
+              ownerEntities,
+              categoryEntities,
               bases: (state.bases || []).map((base: any) => ({
                 ...base,
                 createdAt: base.createdAt ? new Date(base.createdAt) : new Date(),
@@ -634,7 +949,7 @@ export const useStore = create<AppState>()(
               blocks: (state.blocks || []).map((block: any) => ({
                 ...block,
                 date: block.date ? new Date(block.date) : new Date(),
-                rows: (block.rows || []).map((row: any) => ({
+                rows: (block.rows || []).map((row: any) => migrateRow({
                   ...row,
                   date: row.date ? new Date(row.date) : new Date(),
                 })),
@@ -655,7 +970,7 @@ export const useStore = create<AppState>()(
               library: (state.library || []).map((block: any) => ({
                 ...block,
                 date: block.date ? new Date(block.date) : new Date(),
-                rows: (block.rows || []).map((row: any) => ({
+                rows: (block.rows || []).map((row: any) => migrateRow({
                   ...row,
                   date: row.date ? new Date(row.date) : new Date(),
                 })),

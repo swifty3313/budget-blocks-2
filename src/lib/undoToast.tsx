@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store";
 
-type DeletedType = 'block' | 'row' | 'base' | 'band' | 'template' | 'schedule' | 'fixed-bill';
+type DeletedType = 'block' | 'row' | 'base' | 'band' | 'template' | 'schedule' | 'fixed-bill' | 'owner' | 'category';
 
 const DELETE_LABELS: Record<DeletedType, string> = {
   block: 'Block deleted',
@@ -12,6 +12,8 @@ const DELETE_LABELS: Record<DeletedType, string> = {
   template: 'Template deleted',
   schedule: 'Schedule deleted',
   'fixed-bill': 'Fixed bill deleted',
+  owner: 'Owner deleted',
+  category: 'Category deleted',
 };
 
 export function showUndoToast(type: DeletedType, historyId: string, itemName?: string) {
