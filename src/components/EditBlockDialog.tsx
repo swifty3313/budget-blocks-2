@@ -5,16 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, Calendar as CalendarIcon, GripVertical, FileText } from "lucide-react";
+import { Plus, Trash2, GripVertical, FileText } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import type { Block, Row, BlockType } from "@/types";
 import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
+import { DatePickerField } from "@/components/shared/DatePickerField";
+import { OwnerSelect } from "@/components/shared/OwnerSelect";
+import { CategorySelect } from "@/components/shared/CategorySelect";
 
 interface EditBlockDialogProps {
   block: Block | null;
@@ -64,7 +65,7 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
       amount: 0,
       type: blockType === 'Flow' ? 'Transfer' : undefined,
       category: "",
-      date: date,
+      date: startOfDay(date),
       notes: "",
       executed: false,
       flowMode: blockType === 'Flow' ? 'Fixed' : undefined,
@@ -250,21 +251,13 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
               </div>
               <div className="space-y-2">
                 <Label>Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(date, 'MMM d, yyyy')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent>
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={(d) => d && setDate(d)}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <DatePickerField
+                  value={date}
+                  onChange={setDate}
+                  bandStart={currentBand?.startDate}
+                  bandEnd={currentBand?.endDate}
+                  className="w-full"
+                />
               </div>
             </div>
 
@@ -309,16 +302,11 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
                           />
                         </td>
                         <td className="p-2">
-                          <Select value={row.owner} onValueChange={(v) => updateRow(row.id, { owner: v })}>
-                            <SelectTrigger className="h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {owners.map((o) => (
-                                <SelectItem key={o} value={o}>{o}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <OwnerSelect 
+                            value={row.owner} 
+                            onValueChange={(v) => updateRow(row.id, { owner: v })}
+                            className="h-8"
+                          />
                         </td>
                         {(blockType === 'Income' || blockType === 'Fixed Bill') && (
                           <td className="p-2">
@@ -419,18 +407,21 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
                           />
                         </td>
                         <td className="p-2">
-                          <Input
-                            className="h-8"
+                          <CategorySelect
                             value={row.category || ""}
-                            onChange={(e) => updateRow(row.id, { category: e.target.value })}
+                            onValueChange={(v) => updateRow(row.id, { category: v })}
+                            placeholder={blockType === 'Flow' ? "Required" : "Optional"}
+                            required={blockType === 'Flow'}
+                            className="h-8"
                           />
                         </td>
                         <td className="p-2">
-                          <Input
-                            type="date"
-                            className="h-8"
-                            value={format(row.date, 'yyyy-MM-dd')}
-                            onChange={(e) => updateRow(row.id, { date: new Date(e.target.value) })}
+                          <DatePickerField
+                            value={row.date}
+                            onChange={(d) => updateRow(row.id, { date: startOfDay(d) })}
+                            bandStart={currentBand?.startDate}
+                            bandEnd={currentBand?.endDate}
+                            className="h-8 w-[130px]"
                           />
                         </td>
                         <td className="p-2">

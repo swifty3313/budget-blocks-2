@@ -7,14 +7,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, Calendar as CalendarIcon, GripVertical } from "lucide-react";
+import { Plus, Trash2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import type { BlockType, Row } from "@/types";
+import { DatePickerField } from "@/components/shared/DatePickerField";
+import { OwnerSelect } from "@/components/shared/OwnerSelect";
+import { CategorySelect } from "@/components/shared/CategorySelect";
 
 interface CreateBlockDialogProps {
   open: boolean;
@@ -47,7 +48,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
   // Initialize when dialog opens
   useEffect(() => {
     if (open) {
-      setDate(bandInfo.startDate);
+      setDate(startOfDay(bandInfo.startDate));
       setTitle(`${blockType} - ${bandInfo.title}`);
       setDefaultOwner(owners[0] || "");
       if (rows.length === 0) {
@@ -66,7 +67,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
       amount: 0,
       type: blockType === 'Flow' ? 'Transfer' : undefined,
       category: "",
-      date: date,
+      date: startOfDay(date),
       notes: "",
       executed: false,
       flowMode: blockType === 'Flow' ? 'Fixed' : undefined,
@@ -193,7 +194,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
 
   const resetForm = () => {
     setTitle(`${blockType} - ${bandInfo.title}`);
-    setDate(bandInfo.startDate);
+    setDate(startOfDay(bandInfo.startDate));
     setRows([]);
     setAllocationBasis(0);
   };
@@ -230,35 +231,18 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
 
               <div className="space-y-2">
                 <Label>Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(date, 'MMM d, yyyy')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent>
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={(d) => d && setDate(d)}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <DatePickerField
+                  value={date}
+                  onChange={setDate}
+                  bandStart={bandInfo.startDate}
+                  bandEnd={bandInfo.endDate}
+                  className="w-full"
+                />
               </div>
 
               <div className="space-y-2">
                 <Label>Default Owner</Label>
-                <Select value={defaultOwner} onValueChange={setDefaultOwner}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select owner (optional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {owners.map((o) => (
-                      <SelectItem key={o} value={o}>{o}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <OwnerSelect value={defaultOwner} onValueChange={setDefaultOwner} placeholder="Select owner (optional)" />
               </div>
             </div>
 
@@ -300,16 +284,11 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
                           <GripVertical className="w-4 h-4 text-muted-foreground cursor-move" />
                         </td>
                         <td className="p-2">
-                          <Select value={row.owner} onValueChange={(v) => updateRow(row.id, { owner: v })}>
-                            <SelectTrigger className="h-8">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {owners.map((o) => (
-                                <SelectItem key={o} value={o}>{o}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <OwnerSelect 
+                            value={row.owner} 
+                            onValueChange={(v) => updateRow(row.id, { owner: v })}
+                            className="h-8"
+                          />
                         </td>
                         {(blockType === 'Income' || blockType === 'Fixed Bill') && (
                           <td className="p-2">
@@ -411,19 +390,21 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
                           />
                         </td>
                         <td className="p-2">
-                          <Input
-                            className="h-8"
+                          <CategorySelect
                             value={row.category || ""}
-                            onChange={(e) => updateRow(row.id, { category: e.target.value })}
-                            placeholder="Optional"
+                            onValueChange={(v) => updateRow(row.id, { category: v })}
+                            placeholder={blockType === 'Flow' ? "Required" : "Optional"}
+                            required={blockType === 'Flow'}
+                            className="h-8"
                           />
                         </td>
                         <td className="p-2">
-                          <Input
-                            type="date"
-                            className="h-8"
-                            value={format(row.date, 'yyyy-MM-dd')}
-                            onChange={(e) => updateRow(row.id, { date: new Date(e.target.value) })}
+                          <DatePickerField
+                            value={row.date}
+                            onChange={(d) => updateRow(row.id, { date: startOfDay(d) })}
+                            bandStart={bandInfo.startDate}
+                            bandEnd={bandInfo.endDate}
+                            className="h-8 w-[130px]"
                           />
                         </td>
                         <td className="p-2">
