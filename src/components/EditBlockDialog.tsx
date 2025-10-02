@@ -139,7 +139,11 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete }: EditBlo
   };
 
   const handleDuplicate = () => {
-    addBlock({ ...block, id: uuidv4(), rows: block.rows.map(r => ({ ...r, id: uuidv4(), executed: false })) });
+    const { id, createdAt, updatedAt, ...blockData } = block;
+    addBlock({ 
+      ...blockData, 
+      rows: block.rows.map(r => ({ ...r, id: uuidv4(), executed: false })) 
+    });
     toast.success("Block duplicated");
   };
 

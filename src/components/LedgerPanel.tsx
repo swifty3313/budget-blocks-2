@@ -21,7 +21,7 @@ import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
 import { QuickExpenseDialog } from "@/components/QuickExpenseDialog";
 import { CreateBlockDialog } from "@/components/CreateBlockDialog";
 import { EditBlockDialog } from "@/components/EditBlockDialog";
-import type { Block, PayPeriodBand, Row } from "@/types";
+import type { Block, PayPeriodBand, Row, BlockType } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 
 const formatCurrency = (amount: number) => {

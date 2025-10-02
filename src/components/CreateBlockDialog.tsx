@@ -149,13 +149,14 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
 
     if (saveToLib) {
       // Save to library
-      const savedBlock = saveToLibrary({
+      addBlock({
         type: blockType,
         title: title.trim(),
         date: new Date(),
         tags: [],
         rows: rows,
-        bandId: '',
+        bandId: '', // Empty bandId indicates it's a template
+        isTemplate: true,
       });
       toast.success("Saved to library");
     } else {
