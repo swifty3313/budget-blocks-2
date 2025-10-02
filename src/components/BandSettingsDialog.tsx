@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
@@ -47,23 +47,23 @@ export function BandSettingsDialog({ bandId, open, onOpenChange }: BandSettingsD
 
   const currentBand = bandId ? bands.find(b => b.id === bandId) : null;
 
-  const [title, setTitle] = useState(currentBand?.title || "");
-  const [startDate, setStartDate] = useState(currentBand ? format(currentBand.startDate, 'yyyy-MM-dd') : "");
-  const [endDate, setEndDate] = useState(currentBand ? format(currentBand.endDate, 'yyyy-MM-dd') : "");
+  const [title, setTitle] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showSimpleDeleteConfirm, setShowSimpleDeleteConfirm] = useState(false);
   const [deleteAction, setDeleteAction] = useState<'move' | 'delete'>('move');
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
-  // Update local state when band changes
-  useState(() => {
-    if (currentBand) {
+  // Update local state when band or dialog opens
+  useEffect(() => {
+    if (open && currentBand) {
       setTitle(currentBand.title);
       setStartDate(format(currentBand.startDate, 'yyyy-MM-dd'));
       setEndDate(format(currentBand.endDate, 'yyyy-MM-dd'));
     }
-  });
+  }, [open, currentBand]);
 
   const handleSave = () => {
     if (!bandId || !currentBand) return;
