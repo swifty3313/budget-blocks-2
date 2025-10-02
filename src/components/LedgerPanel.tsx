@@ -19,9 +19,8 @@ import { BandSettingsDialog } from "@/components/BandSettingsDialog";
 import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
 import { QuickExpenseDialog } from "@/components/QuickExpenseDialog";
-import { AddIncomeBlockDialog } from "@/components/AddIncomeBlockDialog";
-import { AddFixedBlockDialog } from "@/components/AddFixedBlockDialog";
-import { AddFlowBlockDialog } from "@/components/AddFlowBlockDialog";
+import { CreateBlockDialog } from "@/components/CreateBlockDialog";
+import { EditBlockDialog } from "@/components/EditBlockDialog";
 import type { Block, PayPeriodBand, Row } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 
@@ -77,10 +76,8 @@ export function LedgerPanel({
   const [showManageBills, setShowManageBills] = useState(false);
   const [quickExpenseBand, setQuickExpenseBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
   const [lastInsertedBlockId, setLastInsertedBlockId] = useState<string | null>(null);
-  const [addIncomeBand, setAddIncomeBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
-  const [addFixedBand, setAddFixedBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
-  const [addFlowBand, setAddFlowBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
-  const [manageFixedBillsBlock, setManageFixedBillsBlock] = useState<{ block: Block; band: PayPeriodBand } | null>(null);
+  const [createBlockBand, setCreateBlockBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date; type: BlockType } | null>(null);
+  
   
   // Filter state - persisted to localStorage
   const [filters, setFilters] = useState<LedgerFilters>(() => {
@@ -375,16 +372,6 @@ export function LedgerPanel({
     setPickBillsBand(null);
   };
 
-  const handleAddBillsToBlock = (rows: Row[]) => {
-    if (!manageFixedBillsBlock) return;
-    
-    const updateBlock = useStore.getState().updateBlock;
-    const updatedRows = [...manageFixedBillsBlock.block.rows, ...rows];
-    
-    updateBlock(manageFixedBillsBlock.block.id, { rows: updatedRows });
-    toast.success(`Added ${rows.length} bill(s) to ${manageFixedBillsBlock.block.title}`);
-    setManageFixedBillsBlock(null);
-  };
 
   // Check if there are ANY bands in the system (not just current month)
   const hasBandsInSystem = bands.length > 0;
@@ -413,13 +400,6 @@ export function LedgerPanel({
             </Button>
           )}
           
-          {/* New Block - always enabled but may show guard */}
-          {onNewBlock && (
-            <Button size="sm" onClick={handleNewBlockWithGuard}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Block
-            </Button>
-          )}
           
           {/* Show Archived Toggle - disabled when no bands */}
           <div className="flex items-center gap-2 ml-2 pl-2 border-l">
@@ -653,11 +633,12 @@ export function LedgerPanel({
                         variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setAddIncomeBand({
+                          setCreateBlockBand({
                             id: summary.bandId,
                             title: summary.title,
                             startDate: summary.startDate,
                             endDate: summary.endDate,
+                            type: 'Income',
                           });
                         }}
                         className="flex-1"
@@ -670,11 +651,12 @@ export function LedgerPanel({
                         variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setAddFixedBand({
+                          setCreateBlockBand({
                             id: summary.bandId,
                             title: summary.title,
                             startDate: summary.startDate,
                             endDate: summary.endDate,
+                            type: 'Fixed Bill',
                           });
                         }}
                         className="flex-1"
@@ -687,11 +669,12 @@ export function LedgerPanel({
                         variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setAddFlowBand({
+                          setCreateBlockBand({
                             id: summary.bandId,
                             title: summary.title,
                             startDate: summary.startDate,
                             endDate: summary.endDate,
+                            type: 'Flow',
                           });
                         }}
                         className="flex-1"
@@ -791,36 +774,18 @@ export function LedgerPanel({
                                     {executedCount}/{block.rows.length} executed
                                   </p>
                                 </div>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    // For Fixed Bill blocks, open Bills Library
-                                    if (block.type === 'Fixed Bill') {
-                                      const band = bands.find(b => b.id === block.bandId);
-                                      if (band) {
-                                        setManageFixedBillsBlock({ block, band });
-                                      }
-                                    } else {
-                                      // For other block types, open standard manage dialog
-                                      setManageBlock(block);
-                                    }
-                                  }}
-                                >
-                                  Manage
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setManageBlock(block);
-                                  }}
-                                >
-                                  <Settings className="w-4 h-4" />
-                                </Button>
+                                 <Button
+                                   variant="outline"
+                                   size="icon"
+                                   className="h-8 w-8"
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     setManageBlock(block);
+                                   }}
+                                   title="Edit Block"
+                                 >
+                                   <Settings className="w-4 h-4" />
+                                 </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -953,7 +918,7 @@ export function LedgerPanel({
         </AlertDialogContent>
       </AlertDialog>
 
-      <ManageBlockDialog
+      <EditBlockDialog
         block={manageBlock}
         open={!!manageBlock}
         onOpenChange={(open) => !open && setManageBlock(null)}
@@ -1069,46 +1034,17 @@ export function LedgerPanel({
         />
       )}
 
-      {/* Add Income Block Dialog */}
-      {addIncomeBand && (
-        <AddIncomeBlockDialog
-          open={addIncomeBand !== null}
-          onOpenChange={(open) => !open && setAddIncomeBand(null)}
-          bandId={addIncomeBand.id}
-          bandInfo={addIncomeBand}
+      {/* Unified Create Block Dialog */}
+      {createBlockBand && (
+        <CreateBlockDialog
+          open={createBlockBand !== null}
+          onOpenChange={(open) => !open && setCreateBlockBand(null)}
+          bandId={createBlockBand.id}
+          bandInfo={createBlockBand}
+          blockType={createBlockBand.type}
         />
       )}
 
-      {/* Add Fixed Block Dialog */}
-      {addFixedBand && (
-        <AddFixedBlockDialog
-          open={addFixedBand !== null}
-          onOpenChange={(open) => !open && setAddFixedBand(null)}
-          bandId={addFixedBand.id}
-          bandInfo={addFixedBand}
-        />
-      )}
-
-      {/* Add Flow Block Dialog */}
-      {addFlowBand && (
-        <AddFlowBlockDialog
-          open={addFlowBand !== null}
-          onOpenChange={(open) => !open && setAddFlowBand(null)}
-          bandId={addFlowBand.id}
-          bandInfo={addFlowBand}
-        />
-      )}
-
-      {/* Manage Fixed Bills for Existing Block */}
-      {manageFixedBillsBlock && (
-        <PickFixedBillsDialog
-          open={manageFixedBillsBlock !== null}
-          onOpenChange={(open) => !open && setManageFixedBillsBlock(null)}
-          band={manageFixedBillsBlock.band}
-          onInsert={handleAddBillsToBlock}
-          onManageLibrary={() => setShowManageBills(true)}
-        />
-      )}
     </div>
   );
 }
