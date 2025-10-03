@@ -7,6 +7,8 @@ import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 import type { Row } from "@/types";
 import { getDisplayValue } from "@/lib/displayUtils";
+import { billsLibrary } from "@/lib/billsLibrary";
+import { extractDueDay } from "@/lib/billDateUtils";
 
 interface SaveRowsAsBillsDialogProps {
   open: boolean;
@@ -15,10 +17,7 @@ interface SaveRowsAsBillsDialogProps {
 }
 
 export function SaveRowsAsBillsDialog({ open, onOpenChange, rows }: SaveRowsAsBillsDialogProps) {
-  const fixedBills = useStore((state) => state.fixedBills);
   const bases = useStore((state) => state.bases);
-  const addFixedBill = useStore((state) => state.addFixedBill);
-  const updateFixedBill = useStore((state) => state.updateFixedBill);
 
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
 
@@ -47,17 +46,6 @@ export function SaveRowsAsBillsDialog({ open, onOpenChange, rows }: SaveRowsAsBi
     }
   };
 
-  const extractDueDay = (date: Date): number | 'Last' => {
-    const day = date.getDate();
-    const month = date.getMonth();
-    const year = date.getFullYear();
-    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-    
-    if (day === lastDayOfMonth) {
-      return 'Last';
-    }
-    return day;
-  };
 
   const handleSave = () => {
     if (selectedRowIds.size === 0) {
@@ -72,32 +60,33 @@ export function SaveRowsAsBillsDialog({ open, onOpenChange, rows }: SaveRowsAsBi
     selectedRows.forEach(row => {
       const dueDay = extractDueDay(row.date);
       
-      // Check if a bill with same owner, vendor (source), and fromBaseId exists
-      const existingBill = fixedBills.find(bill => 
-        bill.owner === row.owner &&
-        bill.vendor === row.source &&
-        bill.fromBaseId === row.fromBaseId &&
-        bill.dueDay === dueDay
+      // Check if a bill with same owner, vendor, fromBaseId, and dueDay exists
+      const existingBill = billsLibrary.findDuplicate(
+        row.owner,
+        row.source || 'Unnamed Vendor',
+        row.fromBaseId,
+        dueDay
       );
 
       if (existingBill) {
         // Update existing bill
-        updateFixedBill(existingBill.id, {
+        billsLibrary.upsert({
+          id: existingBill.id,
           defaultAmount: row.amount,
-          category: row.category,
+          defaultCategoryId: row.category,
           notes: row.notes,
           active: true,
         });
         updated++;
       } else {
         // Add new bill
-        addFixedBill({
-          owner: row.owner,
+        billsLibrary.upsert({
+          ownerId: row.owner,
           vendor: row.source || 'Unnamed Vendor',
           fromBaseId: row.fromBaseId,
           defaultAmount: row.amount,
           dueDay,
-          category: row.category,
+          defaultCategoryId: row.category,
           notes: row.notes,
           autopay: false,
           active: true,

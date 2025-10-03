@@ -79,6 +79,7 @@ export function LedgerPanel({
   const [bandSettingsId, setBandSettingsId] = useState<string | null>(null);
   const [pickBillsBand, setPickBillsBand] = useState<PayPeriodBand | null>(null);
   const [showManageBills, setShowManageBills] = useState(false);
+  const [billsRefreshTrigger, setBillsRefreshTrigger] = useState(0);
   const [quickExpenseBand, setQuickExpenseBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
   const [lastInsertedBlockId, setLastInsertedBlockId] = useState<string | null>(null);
   const [createBlockBand, setCreateBlockBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date; type: BlockType; availableToAllocate?: number } | null>(null);
@@ -957,12 +958,19 @@ export function LedgerPanel({
         onManageLibrary={() => {
           setShowManageBills(true);
         }}
+        refreshTrigger={billsRefreshTrigger}
       />
 
       {/* Manage Fixed Bills Dialog */}
       <ManageFixedBillsDialog
         open={showManageBills}
-        onOpenChange={setShowManageBills}
+        onOpenChange={(open) => {
+          setShowManageBills(open);
+          if (!open) {
+            // Refresh bills list when closing
+            setBillsRefreshTrigger(t => t + 1);
+          }
+        }}
       />
 
       {/* Quick Expense Dialog */}

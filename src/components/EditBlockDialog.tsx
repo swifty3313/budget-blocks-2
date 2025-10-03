@@ -13,6 +13,7 @@ import { format, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import type { Block, Row, BlockType } from "@/types";
 import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
+import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
 import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
 import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
 import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
@@ -56,6 +57,8 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [showSaveRowsAsBills, setShowSaveRowsAsBills] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showManageBills, setShowManageBills] = useState(false);
+  const [billsRefreshTrigger, setBillsRefreshTrigger] = useState(0);
   
   // Flow allocation state
   const [basisSource, setBasisSource] = useState<'band' | 'manual'>('band');
@@ -631,9 +634,19 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
           onOpenChange={setShowInsertBills}
           band={currentBand}
           onInsert={handleInsertBills}
-          onManageLibrary={() => {}}
+          onManageLibrary={() => setShowManageBills(true)}
+          refreshTrigger={billsRefreshTrigger}
         />
       )}
+
+      {/* Manage Bills Library Dialog */}
+      <ManageFixedBillsDialog
+        open={showManageBills}
+        onOpenChange={(open) => {
+          setShowManageBills(open);
+          if (!open) setBillsRefreshTrigger(t => t + 1);
+        }}
+      />
 
       {/* Apply Allocation Template Dialog (Flow only) */}
       <ApplyFlowTemplateDialog

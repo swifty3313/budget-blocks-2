@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useStore } from "@/lib/store";
 import { toast } from "sonner";
-import { Plus, Trash2, Search } from "lucide-react";
-import type { FixedBill } from "@/types";
+import { Plus, Trash2, Search, Undo } from "lucide-react";
 import { getDisplayValue } from "@/lib/displayUtils";
+import { billsLibrary, type BillItem } from "@/lib/billsLibrary";
 
 interface ManageFixedBillsDialogProps {
   open: boolean;
@@ -19,44 +19,51 @@ interface ManageFixedBillsDialogProps {
 }
 
 export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsDialogProps) {
-  const fixedBills = useStore((state) => state.fixedBills);
   const bases = useStore((state) => state.bases);
   const owners = useStore((state) => state.owners);
-  const vendors = useStore((state) => state.vendors);
   const categories = useStore((state) => state.categories);
-  const addFixedBill = useStore((state) => state.addFixedBill);
-  const updateFixedBill = useStore((state) => state.updateFixedBill);
-  const deleteFixedBill = useStore((state) => state.deleteFixedBill);
   const addToMasterList = useStore((state) => state.addToMasterList);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [bills, setBills] = useState<BillItem[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Form state for new bill
-  const [newBill, setNewBill] = useState({
-    owner: "",
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingBill, setEditingBill] = useState<BillItem | null>(null);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    ownerId: "",
     vendor: "",
     fromBaseId: "",
     defaultAmount: 0,
-    category: "",
+    defaultCategoryId: "",
     dueDay: 1 as number | 'Last',
     autopay: false,
     notes: "",
-    active: true,
   });
+
+  // Load bills from library
+  useEffect(() => {
+    if (open) {
+      setBills(billsLibrary.all());
+    }
+  }, [open, refreshKey]);
 
   // Filter bills by search term
   const filteredBills = useMemo(() => {
-    if (!searchTerm) return fixedBills;
+    if (!searchTerm) return bills;
     const search = searchTerm.toLowerCase();
-    return fixedBills.filter(
-      (bill) =>
-        bill.owner.toLowerCase().includes(search) ||
-        bill.vendor.toLowerCase().includes(search) ||
-        bill.category?.toLowerCase().includes(search)
+    return bills.filter(
+      (bill) => {
+        const owner = owners.find(o => o === bill.ownerId) || bill.ownerId;
+        const category = categories.find(c => c === bill.defaultCategoryId) || bill.defaultCategoryId || '';
+        return owner.toLowerCase().includes(search) ||
+          bill.vendor.toLowerCase().includes(search) ||
+          category.toLowerCase().includes(search);
+      }
     );
-  }, [fixedBills, searchTerm]);
+  }, [bills, searchTerm, owners, categories]);
 
   // Sort bills by active status, then by vendor name
   const sortedBills = useMemo(() => {
@@ -66,44 +73,85 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
     });
   }, [filteredBills]);
 
-  const handleAddBill = () => {
-    if (!newBill.owner || !newBill.vendor || !newBill.fromBaseId) {
+  const resetForm = () => {
+    setFormData({
+      ownerId: "",
+      vendor: "",
+      fromBaseId: "",
+      defaultAmount: 0,
+      defaultCategoryId: "",
+      dueDay: 1,
+      autopay: false,
+      notes: "",
+    });
+    setEditingBill(null);
+    setShowAddForm(false);
+  };
+
+  const handleSaveBill = () => {
+    if (!formData.ownerId || !formData.vendor || !formData.fromBaseId) {
       toast.error("Please fill in all required fields");
       return;
     }
 
     // Add to master lists if new
-    if (!owners.includes(newBill.owner)) {
-      addToMasterList('owners', newBill.owner);
+    if (!owners.includes(formData.ownerId)) {
+      addToMasterList('owners', formData.ownerId);
     }
-    if (!vendors.includes(newBill.vendor)) {
-      addToMasterList('vendors', newBill.vendor);
-    }
-    if (newBill.category && !categories.includes(newBill.category)) {
-      addToMasterList('categories', newBill.category);
+    if (formData.defaultCategoryId && !categories.includes(formData.defaultCategoryId)) {
+      addToMasterList('categories', formData.defaultCategoryId);
     }
 
-    addFixedBill(newBill);
-    toast.success("Fixed bill added");
-    
-    // Reset form
-    setNewBill({
-      owner: "",
-      vendor: "",
-      fromBaseId: "",
-      defaultAmount: 0,
-      category: "",
-      dueDay: 1,
-      autopay: false,
-      notes: "",
+    const saved = billsLibrary.upsert({
+      id: editingBill?.id,
+      ...formData,
       active: true,
     });
-    setShowAddForm(false);
+
+    toast.success(editingBill ? "Bill updated" : "Bill added");
+    resetForm();
+    setRefreshKey(k => k + 1);
   };
 
-  const handleDeleteBill = (id: string) => {
-    deleteFixedBill(id);
-    toast.success("Fixed bill deleted");
+  const handleEditBill = (bill: BillItem) => {
+    setEditingBill(bill);
+    setFormData({
+      ownerId: bill.ownerId,
+      vendor: bill.vendor,
+      fromBaseId: bill.fromBaseId || "",
+      defaultAmount: bill.defaultAmount,
+      defaultCategoryId: bill.defaultCategoryId || "",
+      dueDay: bill.dueDay,
+      autopay: bill.autopay || false,
+      notes: bill.notes || "",
+    });
+    setShowAddForm(true);
+  };
+
+  const handleDeleteBill = (id: string, vendor: string) => {
+    billsLibrary.softDelete(id);
+    setRefreshKey(k => k + 1);
+    
+    toast.success(
+      <div className="flex items-center justify-between w-full gap-4">
+        <span>Deleted bill: {vendor}</span>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={(e) => {
+            e.stopPropagation();
+            billsLibrary.restore(id);
+            setRefreshKey(k => k + 1);
+            toast.success('Bill restored');
+            toast.dismiss();
+          }}
+        >
+          <Undo className="w-3 h-3 mr-1" />
+          Undo
+        </Button>
+      </div>,
+      { duration: 7000, closeButton: true }
+    );
   };
 
   const formatCurrency = (amount: number) => {
@@ -146,14 +194,14 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
             </Button>
           </div>
 
-          {/* Add Form */}
+          {/* Add/Edit Form */}
           {showAddForm && (
             <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
-              <h3 className="font-semibold">New Fixed Bill</h3>
+              <h3 className="font-semibold">{editingBill ? 'Edit Bill' : 'New Bill'}</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Owner *</Label>
-                  <Select value={newBill.owner} onValueChange={(v) => setNewBill({ ...newBill, owner: v })}>
+                  <Select value={formData.ownerId} onValueChange={(v) => setFormData({ ...formData, ownerId: v })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select owner" />
                     </SelectTrigger>
@@ -166,17 +214,17 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
                 </div>
 
                 <div>
-                  <Label>Vendor/Source *</Label>
+                  <Label>Vendor *</Label>
                   <Input
-                    value={newBill.vendor}
-                    onChange={(e) => setNewBill({ ...newBill, vendor: e.target.value })}
+                    value={formData.vendor}
+                    onChange={(e) => setFormData({ ...formData, vendor: e.target.value })}
                     placeholder="e.g., Electric Company"
                   />
                 </div>
 
                 <div>
                   <Label>From Base *</Label>
-                  <Select value={newBill.fromBaseId} onValueChange={(v) => setNewBill({ ...newBill, fromBaseId: v })}>
+                  <Select value={formData.fromBaseId} onValueChange={(v) => setFormData({ ...formData, fromBaseId: v })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select base" />
                     </SelectTrigger>
@@ -189,20 +237,20 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
                 </div>
 
                 <div>
-                  <Label>Default Amount</Label>
+                  <Label>Default Amount *</Label>
                   <Input
                     type="number"
-                    value={newBill.defaultAmount}
-                    onChange={(e) => setNewBill({ ...newBill, defaultAmount: parseFloat(e.target.value) || 0 })}
+                    value={formData.defaultAmount}
+                    onChange={(e) => setFormData({ ...formData, defaultAmount: parseFloat(e.target.value) || 0 })}
                     placeholder="0.00"
                   />
                 </div>
 
                 <div>
-                  <Label>Due Day</Label>
+                  <Label>Due Day *</Label>
                   <Select
-                    value={String(newBill.dueDay)}
-                    onValueChange={(v) => setNewBill({ ...newBill, dueDay: v === 'Last' ? 'Last' : parseInt(v) })}
+                    value={String(formData.dueDay)}
+                    onValueChange={(v) => setFormData({ ...formData, dueDay: v === 'Last' ? 'Last' : parseInt(v) })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -219,7 +267,7 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
 
                 <div>
                   <Label>Category</Label>
-                  <Select value={newBill.category} onValueChange={(v) => setNewBill({ ...newBill, category: v })}>
+                  <Select value={formData.defaultCategoryId} onValueChange={(v) => setFormData({ ...formData, defaultCategoryId: v })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Optional" />
                     </SelectTrigger>
@@ -234,8 +282,8 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
                 <div className="col-span-2">
                   <Label>Notes</Label>
                   <Textarea
-                    value={newBill.notes}
-                    onChange={(e) => setNewBill({ ...newBill, notes: e.target.value })}
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Optional notes"
                     rows={2}
                   />
@@ -243,26 +291,17 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
 
                 <div className="flex items-center space-x-2">
                   <Checkbox
-                    id="autopay-new"
-                    checked={newBill.autopay}
-                    onCheckedChange={(checked) => setNewBill({ ...newBill, autopay: checked === true })}
+                    id="autopay"
+                    checked={formData.autopay}
+                    onCheckedChange={(checked) => setFormData({ ...formData, autopay: checked === true })}
                   />
-                  <Label htmlFor="autopay-new" className="cursor-pointer">Autopay</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="active-new"
-                    checked={newBill.active}
-                    onCheckedChange={(checked) => setNewBill({ ...newBill, active: checked === true })}
-                  />
-                  <Label htmlFor="active-new" className="cursor-pointer">Active</Label>
+                  <Label htmlFor="autopay" className="cursor-pointer">Autopay</Label>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                <Button onClick={handleAddBill}>Add Bill</Button>
-                <Button variant="ghost" onClick={() => setShowAddForm(false)}>Cancel</Button>
+                <Button onClick={handleSaveBill}>{editingBill ? 'Save Changes' : 'Add Bill'}</Button>
+                <Button variant="ghost" onClick={resetForm}>Cancel</Button>
               </div>
             </div>
           )}
@@ -291,36 +330,56 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedBills.map((bill) => (
-                    <TableRow key={bill.id} className={!bill.active ? "opacity-50" : ""}>
-                      <TableCell>
-                        <Checkbox
-                          checked={bill.active}
-                          onCheckedChange={(checked) =>
-                            updateFixedBill(bill.id, { active: checked === true })
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>{getDisplayValue(bill.owner)}</TableCell>
-                      <TableCell className="font-medium">{getDisplayValue(bill.vendor)}</TableCell>
-                      <TableCell>
-                        {bases.find((b) => b.id === bill.fromBaseId)?.name || "Unknown"}
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(bill.defaultAmount)}</TableCell>
-                      <TableCell>{bill.dueDay === 'Last' ? 'Last Day' : bill.dueDay}</TableCell>
-                      <TableCell className="text-muted-foreground">{getDisplayValue(bill.category, "-")}</TableCell>
-                      <TableCell>{bill.autopay ? "✓" : "-"}</TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteBill(bill.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  sortedBills.map((bill) => {
+                    const ownerName = owners.find(o => o === bill.ownerId) || bill.ownerId;
+                    const baseName = bases.find((b) => b.id === bill.fromBaseId)?.name || "Unknown";
+                    const categoryName = bill.defaultCategoryId 
+                      ? (categories.find(c => c === bill.defaultCategoryId) || bill.defaultCategoryId)
+                      : "-";
+                    
+                    return (
+                      <TableRow key={bill.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={bill.active}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                billsLibrary.restore(bill.id);
+                              } else {
+                                billsLibrary.softDelete(bill.id);
+                              }
+                              setRefreshKey(k => k + 1);
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>{getDisplayValue(ownerName)}</TableCell>
+                        <TableCell className="font-medium">{getDisplayValue(bill.vendor)}</TableCell>
+                        <TableCell>{baseName}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(bill.defaultAmount)}</TableCell>
+                        <TableCell>{bill.dueDay === 'Last' ? 'Last Day' : bill.dueDay}</TableCell>
+                        <TableCell className="text-muted-foreground">{categoryName}</TableCell>
+                        <TableCell>{bill.autopay ? "✓" : "-"}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditBill(bill)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteBill(bill.id, bill.vendor)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

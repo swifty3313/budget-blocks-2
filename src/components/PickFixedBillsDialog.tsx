@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useStore } from "@/lib/store";
 import { toast } from "sonner";
-import { Search, Settings } from "lucide-react";
-import { addDays, getDaysInMonth, lastDayOfMonth, setDate } from "date-fns";
-import type { PayPeriodBand, FixedBill, Row } from "@/types";
+import { Search, Settings, AlertCircle } from "lucide-react";
+import type { PayPeriodBand, Row } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 import { getDisplayValue } from "@/lib/displayUtils";
+import { billsLibrary, type BillItem } from "@/lib/billsLibrary";
+import { billDateInBand } from "@/lib/billDateUtils";
 
 interface PickFixedBillsDialogProps {
   open: boolean;
@@ -19,73 +20,50 @@ interface PickFixedBillsDialogProps {
   band: PayPeriodBand | null;
   onInsert: (rows: Row[]) => void;
   onManageLibrary: () => void;
+  refreshTrigger?: number;
 }
 
-export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onManageLibrary }: PickFixedBillsDialogProps) {
-  const fixedBills = useStore((state) => state.fixedBills);
+export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onManageLibrary, refreshTrigger }: PickFixedBillsDialogProps) {
   const bases = useStore((state) => state.bases);
+  const owners = useStore((state) => state.owners);
+  const categories = useStore((state) => state.categories);
 
+  const [bills, setBills] = useState<BillItem[]>([]);
   const [selectedBillIds, setSelectedBillIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Compute the actual date for a bill's due day within the band
-  const computeDateInBand = (dueDay: number | 'Last', bandStart: Date, bandEnd: Date): Date | null => {
-    const startYear = bandStart.getFullYear();
-    const startMonth = bandStart.getMonth();
-    const endYear = bandEnd.getFullYear();
-    const endMonth = bandEnd.getMonth();
-
-    // Try to find the due day in the band's date range
-    const tryMonths = [
-      { year: startYear, month: startMonth },
-      { year: endYear, month: endMonth },
-    ];
-
-    for (const { year, month } of tryMonths) {
-      let targetDate: Date;
-      
-      if (dueDay === 'Last') {
-        targetDate = lastDayOfMonth(new Date(year, month, 1));
-      } else {
-        const daysInMonth = getDaysInMonth(new Date(year, month, 1));
-        const actualDay = Math.min(dueDay, daysInMonth);
-        targetDate = new Date(year, month, actualDay);
-      }
-
-      // Check if this date falls within the band
-      if (targetDate >= bandStart && targetDate <= bandEnd) {
-        return targetDate;
-      }
+  // Load bills from library
+  useEffect(() => {
+    if (open) {
+      setBills(billsLibrary.all());
     }
-
-    // If not found in band, return null (not in this band)
-    return null;
-  };
+  }, [open, refreshTrigger]);
 
   // Filter and enrich bills with computed dates
   const enrichedBills = useMemo(() => {
     if (!band) return [];
 
-    const active = fixedBills.filter((bill) => bill.active);
-    const search = searchTerm.toLowerCase();
-    const filtered = searchTerm
-      ? active.filter(
-          (bill) =>
-            bill.owner.toLowerCase().includes(search) ||
-            bill.vendor.toLowerCase().includes(search) ||
-            bill.category?.toLowerCase().includes(search)
-        )
-      : active;
-
-    return filtered.map((bill) => {
-      const dateInBand = computeDateInBand(bill.dueDay, band.startDate, band.endDate);
-      return {
-        ...bill,
-        dateInBand,
-        isInBand: dateInBand !== null,
-      };
-    });
-  }, [fixedBills, band, searchTerm]);
+    return bills
+      .filter((b) => {
+        if (!searchTerm) return true;
+        const search = searchTerm.toLowerCase();
+        const owner = owners.find(o => o === b.ownerId) || b.ownerId;
+        const category = categories.find(c => c === b.defaultCategoryId) || b.defaultCategoryId || '';
+        return (
+          owner.toLowerCase().includes(search) ||
+          b.vendor.toLowerCase().includes(search) ||
+          category.toLowerCase().includes(search)
+        );
+      })
+      .map((bill) => {
+        const { date, inBand } = billDateInBand(band.startDate, band.endDate, bill.dueDay);
+        return {
+          ...bill,
+          dateInBand: date,
+          isInBand: inBand,
+        };
+      });
+  }, [bills, band, searchTerm, owners, categories]);
 
   // Sort: in-band first, then by vendor name
   const sortedBills = useMemo(() => {
@@ -126,17 +104,17 @@ export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onMan
     const selectedBills = sortedBills.filter((b) => selectedBillIds.has(b.id));
     
     const rows: Row[] = selectedBills.map((bill) => {
-      // Use computed date if in band, otherwise use band start
-      const date = bill.dateInBand || band.startDate;
+      // Use computed date if in band, otherwise use band end (for out-of-band bills)
+      const date = bill.dateInBand || band.endDate;
       
       return {
         id: uuidv4(),
         date,
-        owner: bill.owner,
+        owner: owners.find(o => o === bill.ownerId) || bill.ownerId,
         source: bill.vendor,
         fromBaseId: bill.fromBaseId,
         amount: bill.defaultAmount,
-        category: bill.category,
+        category: bill.defaultCategoryId || undefined,
         notes: bill.notes || undefined,
         executed: false,
       };
@@ -225,34 +203,47 @@ export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onMan
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedBills.map((bill) => (
-                    <TableRow key={bill.id}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedBillIds.has(bill.id)}
-                          onCheckedChange={() => handleToggleSelect(bill.id)}
-                        />
-                      </TableCell>
-                      <TableCell>{getDisplayValue(bill.owner)}</TableCell>
-                      <TableCell className="font-medium">{getDisplayValue(bill.vendor)}</TableCell>
-                      <TableCell>
-                        {bases.find((b) => b.id === bill.fromBaseId)?.name || "Unknown"}
-                      </TableCell>
-                      <TableCell className="text-right">{formatCurrency(bill.defaultAmount)}</TableCell>
-                      <TableCell>{bill.dueDay === 'Last' ? 'Last Day' : bill.dueDay}</TableCell>
-                      <TableCell>
-                        {bill.isInBand ? (
-                          <span>{formatDate(bill.dateInBand!)}</span>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">
-                            Not in band
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{getDisplayValue(bill.category, "-")}</TableCell>
-                      <TableCell>{bill.autopay ? "✓" : "-"}</TableCell>
-                    </TableRow>
-                  ))
+                  sortedBills.map((bill) => {
+                    const ownerName = owners.find(o => o === bill.ownerId) || bill.ownerId;
+                    const categoryName = bill.defaultCategoryId 
+                      ? (categories.find(c => c === bill.defaultCategoryId) || bill.defaultCategoryId)
+                      : '—';
+                    
+                    return (
+                      <TableRow key={bill.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedBillIds.has(bill.id)}
+                            onCheckedChange={() => handleToggleSelect(bill.id)}
+                          />
+                        </TableCell>
+                        <TableCell>{ownerName}</TableCell>
+                        <TableCell className="font-medium">{bill.vendor}</TableCell>
+                        <TableCell>
+                          {bases.find((b) => b.id === bill.fromBaseId)?.name || "Unknown"}
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(bill.defaultAmount)}</TableCell>
+                        <TableCell>{bill.dueDay === 'Last' ? 'Last Day' : bill.dueDay}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {bill.dateInBand ? formatDate(bill.dateInBand) : '—'}
+                            {!bill.isInBand && selectedBillIds.has(bill.id) && (
+                              <Badge variant="outline" className="text-xs">
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                                Out of band
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {categoryName}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {bill.autopay ? '✓' : '—'}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
