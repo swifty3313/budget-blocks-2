@@ -12,12 +12,13 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, Calendar, Pencil, Info, FileText } from "lucide-react";
+import { Plus, Trash2, Calendar, Pencil, Info, FileText, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
 import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
 import { joinDisplayValues } from "@/lib/displayUtils";
+import { ManageTemplatesDialog } from "@/components/ManageTemplatesDialog";
 import type { BlockType, Row } from "@/types";
 
 interface NewBlockDialogProps {
@@ -59,6 +60,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
   const [showApplyFlowTemplate, setShowApplyFlowTemplate] = useState(false);
   const [selectedFlowTemplate, setSelectedFlowTemplate] = useState<any>(null);
   const [lastInsertedBlockId, setLastInsertedBlockId] = useState<string | null>(null);
+  const [showManageTemplates, setShowManageTemplates] = useState(false);
   
   // Compact mode state with localStorage persistence
   const [isCompact, setIsCompact] = useState(() => {
@@ -526,10 +528,22 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="new">New Block</TabsTrigger>
-            <TabsTrigger value="templates">Templates</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between">
+            <TabsList className="grid w-full grid-cols-2 max-w-md">
+              <TabsTrigger value="new">New Block</TabsTrigger>
+              <TabsTrigger value="templates">Templates</TabsTrigger>
+            </TabsList>
+            {activeTab === "templates" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowManageTemplates(true)}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Manage
+              </Button>
+            )}
+          </div>
 
           <TabsContent value="new" className="space-y-4 mt-4">
             {/* Block Type Selection */}
@@ -1296,6 +1310,11 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
         bandInfo={bandInfo}
         initialBasis={initialBasis}
         availableToAllocate={availableToAllocate}
+      />
+
+      <ManageTemplatesDialog
+        open={showManageTemplates}
+        onOpenChange={setShowManageTemplates}
       />
     </Dialog>
   );

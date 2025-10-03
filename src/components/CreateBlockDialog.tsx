@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, GripVertical, FileText } from "lucide-react";
+import { Plus, Trash2, GripVertical, FileText, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
@@ -23,6 +23,7 @@ import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { showPostInsertToast } from "@/lib/postInsertToast";
 import { joinDisplayValues } from "@/lib/displayUtils";
+import { ManageTemplatesDialog } from "@/components/ManageTemplatesDialog";
 
 interface CreateBlockDialogProps {
   open: boolean;
@@ -57,6 +58,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
   const [lastInsertedBlock, setLastInsertedBlock] = useState<Block | null>(null);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showManageTemplates, setShowManageTemplates] = useState(false);
   
   // Flow allocation state
   const [basisSource, setBasisSource] = useState<'band' | 'manual' | 'calculator'>('band');
@@ -348,10 +350,22 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "new" | "templates")}>
-          <TabsList>
-            <TabsTrigger value="new">New Block</TabsTrigger>
-            <TabsTrigger value="templates">Templates ({filteredTemplates.length})</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="new">New Block</TabsTrigger>
+              <TabsTrigger value="templates">Templates ({filteredTemplates.length})</TabsTrigger>
+            </TabsList>
+            {activeTab === "templates" && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowManageTemplates(true)}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Manage
+              </Button>
+            )}
+          </div>
 
           <TabsContent value="new" className="space-y-4 mt-4">
             {/* Block Header Fields */}
@@ -814,6 +828,11 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
       } : null}
       onInsert={handleInsertBills}
       onManageLibrary={() => {}}
+    />
+
+    <ManageTemplatesDialog
+      open={showManageTemplates}
+      onOpenChange={setShowManageTemplates}
     />
     </>
   );

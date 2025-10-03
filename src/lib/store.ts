@@ -372,6 +372,30 @@ export const useStore = create<AppState>()(
         return historyItem.id;
       },
 
+      updateTemplate: (id, updates) => {
+        set((state) => ({
+          library: state.library.map((t) =>
+            t.id === id ? { ...t, ...updates, updatedAt: new Date() } : t
+          ),
+        }));
+      },
+
+      duplicateTemplate: (id) => {
+        const { library } = get();
+        const template = library.find((t) => t.id === id);
+        if (!template) return;
+
+        const duplicate: Block = {
+          ...template,
+          id: uuidv4(),
+          title: `${template.title} (Copy)`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+
+        set((state) => ({ library: [...state.library, duplicate] }));
+      },
+
       // Execute/Undo actions
       executeRow: (blockId, rowId) => {
         const { blocks, bases } = get();

@@ -207,6 +207,8 @@ export interface AppState {
   
   saveToLibrary: (block: Block) => void;
   removeFromLibrary: (id: string) => string;
+  updateTemplate: (id: string, updates: Partial<Block>) => void;
+  duplicateTemplate: (id: string) => void;
   
   executeRow: (blockId: string, rowId: string) => void;
   undoExecuteRow: (blockId: string, rowId: string) => void;

@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useStore } from "@/lib/store";
-import { FileText, DollarSign, Receipt, ArrowLeftRight } from "lucide-react";
+import { FileText, DollarSign, Receipt, ArrowLeftRight, Settings } from "lucide-react";
 import type { Block } from "@/types";
 import { joinDisplayValues } from "@/lib/displayUtils";
+import { ManageTemplatesDialog } from "@/components/ManageTemplatesDialog";
 
 interface TemplateChooserDialogProps {
   open: boolean;
@@ -22,6 +24,7 @@ export function TemplateChooserDialog({
   bandTitle 
 }: TemplateChooserDialogProps) {
   const library = useStore((state) => state.library);
+  const [showManage, setShowManage] = useState(false);
 
   const incomeTemplates = library.filter(t => t.type === 'Income');
   const fixedTemplates = library.filter(t => t.type === 'Fixed Bill');
@@ -95,14 +98,27 @@ export function TemplateChooserDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Insert from Template</DialogTitle>
-          <DialogDescription>
-            {bandTitle ? `Choose a template to insert into ${bandTitle}` : 'Choose a template to insert'}
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <DialogTitle>Insert from Template</DialogTitle>
+                <DialogDescription>
+                  {bandTitle ? `Choose a template to insert into ${bandTitle}` : 'Choose a template to insert'}
+                </DialogDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowManage(true)}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Manage
+              </Button>
+            </div>
+          </DialogHeader>
 
         <Tabs defaultValue="income" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
@@ -146,5 +162,11 @@ export function TemplateChooserDialog({
         </Tabs>
       </DialogContent>
     </Dialog>
+
+    <ManageTemplatesDialog
+      open={showManage}
+      onOpenChange={setShowManage}
+    />
+  </>
   );
 }
