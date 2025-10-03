@@ -12,6 +12,7 @@ import { format, addDays } from "date-fns";
 import type { PayPeriodBand } from "@/types";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { showUndoToast } from "@/lib/undoToast";
+import { parseDateInput } from "@/lib/dateOnly";
 
 interface BandSettingsDialogProps {
   bandId: string | null;
@@ -73,8 +74,12 @@ export function BandSettingsDialog({ bandId, open, onOpenChange }: BandSettingsD
       return;
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Parse dates using local timezone (avoid UTC conversion)
+    const [startY, startM, startD] = startDate.split('-').map(Number);
+    const start = new Date(startY, startM - 1, startD); // Local midnight
+    
+    const [endY, endM, endD] = endDate.split('-').map(Number);
+    const end = new Date(endY, endM - 1, endD); // Local midnight
 
     if (start >= end) {
       toast.error("End date must be after start date");
