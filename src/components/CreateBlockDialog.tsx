@@ -772,7 +772,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
             </Button>
             <Button variant="outline" onClick={handleOpenSaveToLibrary} disabled={isSaving}>
               <FileText className="w-4 h-4 mr-2" />
-              Save to Library
+              Save as Template
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
               Cancel

@@ -90,7 +90,7 @@ export function AddFlowBlockDialog({ open, onOpenChange, bandId, bandInfo }: Add
       isTemplate: true,
     });
 
-    toast.success("Saved to library");
+    toast.success("Saved as template");
   };
 
   const resetForm = () => {
@@ -154,12 +154,27 @@ export function AddFlowBlockDialog({ open, onOpenChange, bandId, bandInfo }: Add
               </TooltipProvider>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setShowDuplicate(true)}>
-                Duplicate to...
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <Button 
+                        variant="outline" 
+                        disabled
+                        className="cursor-not-allowed opacity-50"
+                      >
+                        Duplicate to...
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Save the block first to duplicate it</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Button variant="outline" onClick={handleSaveToLibrary}>
                 <FileText className="w-4 h-4 mr-2" />
-                Save to Library
+                Save as Template
               </Button>
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel

@@ -611,7 +611,7 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
                   onClick={() => setShowSaveAsTemplate(true)}
                 >
                   <Save className="w-4 h-4 mr-2" />
-                  Save to Library
+                  Save as Template
                 </Button>
               </div>
               <div className="flex gap-2">

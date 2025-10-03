@@ -171,7 +171,7 @@ export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onMan
             </Button>
             <Button variant="ghost" size="sm" onClick={onManageLibrary}>
               <Settings className="w-4 h-4 mr-2" />
-              Manage Library
+              Manage Bills
             </Button>
           </div>
 
@@ -199,7 +199,7 @@ export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onMan
                     <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                       {searchTerm
                         ? "No bills match your filter"
-                        : "No active bills in library. Manage library to add bills."}
+                        : "No bills yet. Click 'Manage Bills' to add recurring expenses."}
                     </TableCell>
                   </TableRow>
                 ) : (

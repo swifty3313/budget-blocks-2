@@ -298,7 +298,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
         createdAt: new Date(), 
         updatedAt: new Date() 
       } as any);
-      toast.success("Saved to library");
+      toast.success("Saved as template");
     }
 
     resetForm();
@@ -1290,10 +1290,10 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
           ) : (
             <>
               <Button variant="outline" onClick={() => handleSave(true, false)}>
-                Save to Library
+                Save as Template
               </Button>
               <Button variant="outline" onClick={() => handleSave(true, true)}>
-                Save & Insert + Library
+                Save & Insert + Template
               </Button>
               <Button onClick={() => handleSave(false, true)}>Save & Insert</Button>
             </>

@@ -117,9 +117,9 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
         isTemplate: true,
       });
       
-      toast.success("Saved to library");
+      toast.success("Saved as template");
     } catch (error) {
-      toast.error(`Couldn't save to library: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Couldn't save as template: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }
@@ -423,7 +423,7 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
             </Button>
             <Button variant="outline" onClick={handleSaveToLibrary} disabled={isSaving}>
               <FileText className="w-4 h-4 mr-2" />
-              Save to Library
+              Save as Template
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
               Cancel

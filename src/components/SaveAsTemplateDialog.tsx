@@ -57,7 +57,7 @@ export function SaveAsTemplateDialog({ open, onOpenChange, block }: SaveAsTempla
     };
 
     saveToLibrary(template);
-    toast.success(`Saved to Library: ${templateTitle}`);
+    toast.success(`Saved as template: ${templateTitle}`);
     onOpenChange(false);
   };
 

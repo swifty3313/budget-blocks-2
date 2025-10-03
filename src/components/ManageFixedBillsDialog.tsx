@@ -170,7 +170,7 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage Fixed Bills Library</DialogTitle>
+          <DialogTitle>Manage Bills</DialogTitle>
           <DialogDescription>
             Create and manage bill templates. Use the picker to insert bills into specific bands.
           </DialogDescription>
