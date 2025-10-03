@@ -10,7 +10,6 @@ import { ManageBillsDialog } from "@/components/ManageBillsDialog";
 import { ManageOwnersDialog } from "@/components/shared/ManageOwnersDialog";
 import { ManageCategoriesDialog } from "@/components/shared/ManageCategoriesDialog";
 import { UndoHistoryPanel } from "@/components/UndoHistoryPanel";
-import { WelcomeDialog } from "@/components/WelcomeDialog";
 import { Button } from "@/components/ui/button";
 import { Download, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -18,9 +17,10 @@ import { toast } from "sonner";
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onRestartOnboarding?: () => void;
 }
 
-export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, onRestartOnboarding }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState<"bases" | "periods" | "templates" | "bills" | "owners" | "categories" | "data" | "history">("bases");
   
   const bases = useStore((state) => state.bases);
@@ -39,7 +39,13 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [showBillsDialog, setShowBillsDialog] = useState(false);
   const [showOwnersDialog, setShowOwnersDialog] = useState(false);
   const [showCategoriesDialog, setShowCategoriesDialog] = useState(false);
-  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
+
+  const handleRestartOnboarding = () => {
+    onOpenChange(false); // Close settings dialog first
+    setTimeout(() => {
+      onRestartOnboarding?.();
+    }, 100); // Small delay to ensure settings dialog closes first
+  };
 
   const handleExport = () => {
     const data = exportData();
@@ -250,7 +256,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                       <p className="text-sm text-muted-foreground mb-4">
                         Restart the welcome tutorial to see the onboarding process again
                       </p>
-                      <Button variant="outline" onClick={() => setShowWelcomeDialog(true)}>
+                      <Button variant="outline" onClick={handleRestartOnboarding}>
                         Restart Onboarding
                       </Button>
                     </div>
@@ -269,7 +275,6 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       <ManageBillsDialog open={showBillsDialog} onOpenChange={setShowBillsDialog} />
       <ManageOwnersDialog open={showOwnersDialog} onOpenChange={setShowOwnersDialog} />
       <ManageCategoriesDialog open={showCategoriesDialog} onOpenChange={setShowCategoriesDialog} />
-      <WelcomeDialog open={showWelcomeDialog} onOpenChange={setShowWelcomeDialog} />
     </>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
 import { SettingsDialog } from "@/components/SettingsDialog";
+import { WelcomeDialog } from "@/components/WelcomeDialog";
 
 interface TopBarProps {
   // Actions removed - now in LedgerPanel
@@ -9,6 +10,7 @@ interface TopBarProps {
 
 export function TopBar({}: TopBarProps) {
   const [showSettings, setShowSettings] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   return (
     <>
@@ -31,7 +33,12 @@ export function TopBar({}: TopBarProps) {
         </div>
       </div>
 
-      <SettingsDialog open={showSettings} onOpenChange={setShowSettings} />
+      <SettingsDialog 
+        open={showSettings} 
+        onOpenChange={setShowSettings}
+        onRestartOnboarding={() => setShowWelcome(true)}
+      />
+      <WelcomeDialog open={showWelcome} onOpenChange={setShowWelcome} />
     </>
   );
 }
