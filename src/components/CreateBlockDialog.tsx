@@ -18,6 +18,9 @@ import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
 import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
+import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { showPostInsertToast } from "@/lib/postInsertToast";
 
 interface CreateBlockDialogProps {
@@ -51,6 +54,8 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
   const [showInsertBills, setShowInsertBills] = useState(false);
   const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false);
   const [lastInsertedBlock, setLastInsertedBlock] = useState<Block | null>(null);
+  const [showDuplicate, setShowDuplicate] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // Flow allocation state
   const [basisSource, setBasisSource] = useState<'band' | 'manual' | 'calculator'>('band');
@@ -150,7 +155,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
 
   const [isSaving, setIsSaving] = useState(false);
 
-  const validateAndSave = async (saveToLib: boolean = false) => {
+  const handleSaveChanges = async () => {
     if (isSaving) return;
 
     if (!title.trim()) {
@@ -181,8 +186,6 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
           toast.error("Flow rows must have a source (From Base)");
           return;
         }
-        // Category is optional for Flow rows
-        // Validate basis for % rows
         if (row.flowMode === '%') {
           if (!allocationBasis || allocationBasis <= 0) {
             toast.error("Allocation Basis is required for percentage-based rows");
@@ -195,88 +198,112 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
     setIsSaving(true);
 
     try {
-      if (saveToLib) {
-        // Save to library
-        console.debug('Saving to library', { type: blockType, title: title.trim(), rowCount: rows.length });
-        addBlock({
-          type: blockType,
-          title: title.trim(),
-          date: new Date(),
-          tags: [],
-          rows: rows,
-          bandId: '', // Empty bandId indicates it's a template
-          isTemplate: true,
-        });
-        toast.success("Saved to library");
-      } else {
-        // Insert into band
-        if (!bandId) {
-          toast.error("No band selected - cannot insert block");
-          return;
-        }
-        
-        console.debug('createBlockAndInsert payload', {
-          bandId,
-          type: blockType,
-          title: title.trim(),
-          date,
-          rowCount: rows.length,
-        });
+      if (!bandId) {
+        toast.error("No band selected - cannot insert block");
+        return;
+      }
+      
+      console.debug('createBlockAndInsert payload', {
+        bandId,
+        type: blockType,
+        title: title.trim(),
+        date,
+        rowCount: rows.length,
+      });
 
-        addBlock({
-          type: blockType,
-          title: title.trim(),
-          date,
-          tags: [],
-          rows: rows,
-          bandId,
-        });
+      addBlock({
+        type: blockType,
+        title: title.trim(),
+        date,
+        tags: [],
+        rows: rows,
+        bandId,
+      });
+      
+      const insertedBlock: Block = {
+        id: '',
+        type: blockType,
+        title: title.trim(),
+        date,
+        tags: [],
+        rows: rows,
+        bandId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        allocationBasisValue: basisSource === 'calculator' ? calculatorBasis : (basisSource === 'manual' ? manualBasis : undefined),
+      };
+      
+      toast.success("Block created");
+      resetForm();
+      onOpenChange(false);
+      
+      const shouldOffer = 
+        (blockType === 'Income' && !templatePreferences.dontOfferForIncome) ||
+        (blockType === 'Fixed Bill' && !templatePreferences.dontOfferForFixed) ||
+        (blockType === 'Flow' && !templatePreferences.dontOfferForFlow);
         
-        // Create the block object for the toast
-        const insertedBlock: Block = {
-          id: '', // Will be assigned by store
-          type: blockType,
-          title: title.trim(),
-          date,
-          tags: [],
-          rows: rows,
-          bandId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          allocationBasisValue: basisSource === 'calculator' ? calculatorBasis : (basisSource === 'manual' ? manualBasis : undefined),
-        };
-        
-        toast.success("Block created");
-        resetForm();
-        onOpenChange(false);
-        
-        // Show post-insert snackbar if not disabled for this type
-        const shouldOffer = 
-          (blockType === 'Income' && !templatePreferences.dontOfferForIncome) ||
-          (blockType === 'Fixed Bill' && !templatePreferences.dontOfferForFixed) ||
-          (blockType === 'Flow' && !templatePreferences.dontOfferForFlow);
-          
-        if (shouldOffer) {
-          setLastInsertedBlock(insertedBlock);
-          setTimeout(() => {
-            showPostInsertToast({
-              block: insertedBlock,
-              blockType,
-              blockTitle: title.trim(),
-              onSaveAsTemplate: () => {
-                setSaveTemplateDialogOpen(true);
-              },
-              onDontOfferAgain: () => {
-                updateTemplatePreference(blockType, true);
-                toast.info(`Won't offer template save for ${blockType} blocks anymore`);
-              },
-            });
-          }, 300);
-        }
+      if (shouldOffer) {
+        setLastInsertedBlock(insertedBlock);
+        setTimeout(() => {
+          showPostInsertToast({
+            block: insertedBlock,
+            blockType,
+            blockTitle: title.trim(),
+            onSaveAsTemplate: () => {
+              setSaveTemplateDialogOpen(true);
+            },
+            onDontOfferAgain: () => {
+              updateTemplatePreference(blockType, true);
+              toast.info(`Won't offer template save for ${blockType} blocks anymore`);
+            },
+          });
+        }, 300);
       }
     } catch (error) {
       console.error('Failed to save block', error);
       toast.error(`Couldn't create block: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (isSaving) return;
+
+    if (!title.trim()) {
+      toast.error("Please enter a title");
+      return;
+    }
+
+    // Validate rows
+    for (const row of rows) {
+      if (!row.owner?.trim()) {
+        toast.error("All rows must have an owner");
+        return;
+      }
+      if (!row.amount || row.amount <= 0) {
+        toast.error("All rows must have a positive amount");
+        return;
+      }
+    }
+
+    setIsSaving(true);
+
+    try {
+      console.debug('Saving to library', { type: blockType, title: title.trim(), rowCount: rows.length });
+      addBlock({
+        type: blockType,
+        title: title.trim(),
+        date: new Date(),
+        tags: [],
+        rows: rows,
+        bandId: '',
+        isTemplate: true,
+      });
+      toast.success("Saved to library");
+    } catch (error) {
+      console.error('Failed to save to library', error);
+      toast.error(`Couldn't save to library: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }
@@ -709,16 +736,43 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
           </TabsContent>
         </Tabs>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button variant="secondary" onClick={() => validateAndSave(true)} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save to Library"}
-          </Button>
-          <Button onClick={() => validateAndSave(false)} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save & Insert"}
-          </Button>
+        <DialogFooter className="flex items-center justify-between">
+          <div className="flex gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button 
+                      variant="destructive" 
+                      disabled
+                      className="cursor-not-allowed opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Block
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Nothing to delete yet</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowDuplicate(true)} disabled={isSaving}>
+              Duplicate to...
+            </Button>
+            <Button variant="outline" onClick={handleSaveToLibrary} disabled={isSaving}>
+              <FileText className="w-4 h-4 mr-2" />
+              Save to Library
+            </Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveChanges} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -727,6 +781,23 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
       open={saveTemplateDialogOpen}
       onOpenChange={setSaveTemplateDialogOpen}
       block={lastInsertedBlock}
+    />
+    
+    {/* Duplicate Block Dialog */}
+    <DuplicateBlockDialog
+      open={showDuplicate}
+      onOpenChange={setShowDuplicate}
+      block={{
+        id: '',
+        title,
+        date,
+        rows,
+        type: blockType,
+        bandId,
+        tags: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }}
     />
     
     {/* Insert Bills Dialog (Fixed Bill only) */}

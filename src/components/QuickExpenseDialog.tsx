@@ -15,6 +15,10 @@ import { DatePickerField } from "@/components/shared/DatePickerField";
 import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
 import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
+import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
+import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Trash2, FileText } from "lucide-react";
 import { showPostInsertToast } from "@/lib/postInsertToast";
 
 interface QuickExpenseDialogProps {
@@ -46,6 +50,8 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
   const [isSaving, setIsSaving] = useState(false);
   const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false);
   const [lastInsertedBlock, setLastInsertedBlock] = useState<Block | null>(null);
+  const [showDuplicate, setShowDuplicate] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Initialize with band start date and first owner
   useEffect(() => {
@@ -58,6 +64,66 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
   }, [open, bandInfo, owners]);
 
   const isDateOutsideBand = !isWithinInterval(date, { start: bandInfo.startDate, end: bandInfo.endDate });
+
+  const handleSaveChanges = async () => {
+    await handleSave(false);
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (isSaving) return;
+    if (!owner.trim()) {
+      toast.error("Please select an owner");
+      return;
+    }
+    if (!source.trim()) {
+      toast.error("Please enter a source/description");
+      return;
+    }
+    if (!category.trim()) {
+      toast.error("Please select a category");
+      return;
+    }
+    if (value <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const amount = mode === 'Fixed' ? value : 0;
+      const row: Row = {
+        id: uuidv4(),
+        date,
+        owner,
+        source,
+        fromBaseId,
+        toBaseId: toBaseId || undefined,
+        amount,
+        flowMode: mode,
+        flowValue: value,
+        type: 'Expense',
+        category,
+        notes,
+        executed: false,
+      };
+
+      addBlock({
+        type: 'Flow',
+        title: source,
+        date: new Date(),
+        tags: [],
+        rows: [row],
+        bandId: '',
+        isTemplate: true,
+      });
+      
+      toast.success("Saved to library");
+    } catch (error) {
+      toast.error(`Couldn't save to library: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSave = async (executeImmediately: boolean = false) => {
     if (isSaving) return;
@@ -329,16 +395,43 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button variant="outline" onClick={() => handleSave(false)} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
-          <Button onClick={() => handleSave(true)} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save & Execute"}
-          </Button>
+        <DialogFooter className="flex items-center justify-between">
+          <div className="flex gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button 
+                      variant="destructive" 
+                      disabled
+                      className="cursor-not-allowed opacity-50"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Block
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Nothing to delete yet</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowDuplicate(true)} disabled={isSaving}>
+              Duplicate to...
+            </Button>
+            <Button variant="outline" onClick={handleSaveToLibrary} disabled={isSaving}>
+              <FileText className="w-4 h-4 mr-2" />
+              Save to Library
+            </Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveChanges} disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -347,6 +440,22 @@ export function QuickExpenseDialog({ open, onOpenChange, bandId, bandInfo }: Qui
       open={saveTemplateDialogOpen}
       onOpenChange={setSaveTemplateDialogOpen}
       block={lastInsertedBlock}
+    />
+    
+    {/* Duplicate Block Dialog */}
+    <DuplicateBlockDialog
+      open={showDuplicate}
+      onOpenChange={setShowDuplicate}
+      block={lastInsertedBlock}
+    />
+    
+    {/* Delete Confirmation Dialog - disabled in create */}
+    <DeleteConfirmDialog
+      open={showDeleteConfirm}
+      onOpenChange={setShowDeleteConfirm}
+      onConfirm={() => {}}
+      type="block"
+      contextInfo=""
     />
     </>
   );
