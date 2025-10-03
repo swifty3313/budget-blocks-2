@@ -9,6 +9,7 @@ import { ManageTemplatesDialog } from "@/components/ManageTemplatesDialog";
 import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
 import { ManageOwnersDialog } from "@/components/shared/ManageOwnersDialog";
 import { ManageCategoriesDialog } from "@/components/shared/ManageCategoriesDialog";
+import { UndoHistoryPanel } from "@/components/UndoHistoryPanel";
 import { Button } from "@/components/ui/button";
 import { Download, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -19,7 +20,7 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
-  const [activeTab, setActiveTab] = useState<"bases" | "periods" | "templates" | "bills" | "owners" | "categories" | "data">("bases");
+  const [activeTab, setActiveTab] = useState<"bases" | "periods" | "templates" | "bills" | "owners" | "categories" | "data" | "history">("bases");
   
   const bases = useStore((state) => state.bases);
   const bands = useStore((state) => state.bands);
@@ -27,6 +28,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const fixedBills = useStore((state) => state.fixedBills);
   const owners = useStore((state) => state.owners);
   const categories = useStore((state) => state.categories);
+  const undoHistory = useStore((state) => state.undoHistory);
   const exportData = useStore((state) => state.exportData);
   const importData = useStore((state) => state.importData);
   
@@ -86,7 +88,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="bases">
                 Bases
                 {bases.length > 0 && (
@@ -132,6 +134,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 {categories.length > 0 && (
                   <Badge variant="secondary" className="ml-1 text-xs">
                     {categories.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="history">
+                Undo History
+                {undoHistory.length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">
+                    {undoHistory.length}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -202,6 +212,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   <Button onClick={() => setShowCategoriesDialog(true)}>
                     Open Categories Manager
                   </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="history" className="m-0">
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Restore recently deleted items
+                  </p>
+                  <UndoHistoryPanel />
                 </div>
               </TabsContent>
 
