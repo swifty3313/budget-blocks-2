@@ -5,13 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useStore } from "@/lib/store";
-import { toast } from "sonner";
 import { format } from "date-fns";
 import { Trash2, FileText } from "lucide-react";
 import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
 import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
-import type { Block } from "@/types";
+import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
+import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
+import { showCreateToast, showErrorToast } from "@/lib/toastUtils";
+import type { Block, Row } from "@/types";
 
 interface AddFixedBlockDialogProps {
   open: boolean;
@@ -22,35 +24,43 @@ interface AddFixedBlockDialogProps {
 
 export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: AddFixedBlockDialogProps) {
   const addBlock = useStore((state) => state.addBlock);
+  const bands = useStore((state) => state.bands);
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState<Date>(new Date());
+  const [rows, setRows] = useState<Row[]>([]);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showInsertBills, setShowInsertBills] = useState(false);
+  const [showManageBills, setShowManageBills] = useState(false);
+  const [billsRefreshTrigger, setBillsRefreshTrigger] = useState(0);
   const [lastCreatedBlock, setLastCreatedBlock] = useState<Block | null>(null);
+
+  const currentBand = bands.find(b => b.id === bandId);
 
   // Initialize with band start date
   useEffect(() => {
     if (open) {
       setDate(bandInfo.startDate);
       setTitle(`Bills - ${bandInfo.title}`);
+      setRows([]);
     }
   }, [open, bandInfo]);
 
   const handleSaveChanges = () => {
     if (!title.trim()) {
-      toast.error("Please enter a title");
+      showErrorToast('Please enter a title');
       return;
     }
 
-    // Create empty Fixed Bill block
+    // Create Fixed Bill block with any inserted rows
     addBlock({
       type: 'Fixed Bill',
       title: title.trim(),
       date,
       tags: [],
-      rows: [],
+      rows,
       bandId,
     });
 
@@ -60,23 +70,28 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
       title: title.trim(),
       date,
       tags: [],
-      rows: [],
+      rows,
       bandId,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     setLastCreatedBlock(block);
-    toast.success("Fixed Bill block created. Use Manage to add bills from library.");
+    showCreateToast('Fixed Bill block');
     
     // Reset form
     resetForm();
     onOpenChange(false);
   };
 
+  const handleInsertBills = (newRows: Row[]) => {
+    setRows([...rows, ...newRows]);
+    setShowInsertBills(false);
+  };
+
   const handleSaveToLibrary = () => {
     if (!title.trim()) {
-      toast.error("Please enter a title");
+      showErrorToast('Please enter a title');
       return;
     }
 
@@ -85,50 +100,94 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
       title: title.trim(),
       date: new Date(),
       tags: [],
-      rows: [],
+      rows,
       bandId: '',
       isTemplate: true,
     });
 
-    toast.success("Saved as template");
+    showCreateToast('Template');
   };
 
   const resetForm = () => {
     setTitle(`Bills - ${bandInfo.title}`);
     setDate(bandInfo.startDate);
+    setRows([]);
   };
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Add Fixed Bill Block</DialogTitle>
-            <DialogDescription>
-              Create a new fixed bill block in {bandInfo.title}
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Add Fixed Bill Block</DialogTitle>
+                <DialogDescription>
+                  Create a new fixed bill block in {bandInfo.title}
+                </DialogDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowInsertBills(true)}
+              >
+                <FileText className="w-4 h-4 mr-2" />
+                Insert Bills
+              </Button>
+            </div>
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Title */}
-            <div className="space-y-2">
-              <Label>Title *</Label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Bills - March 2025"
-              />
+            {/* Title & Date */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g., Bills - March 2025"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={format(date, 'yyyy-MM-dd')}
+                  onChange={(e) => setDate(new Date(e.target.value))}
+                />
+              </div>
             </div>
 
-            {/* Date */}
-            <div className="space-y-2">
-              <Label>Date</Label>
-              <Input
-                type="date"
-                value={format(date, 'yyyy-MM-dd')}
-                onChange={(e) => setDate(new Date(e.target.value))}
-              />
-            </div>
+            {/* Bills Preview */}
+            {rows.length > 0 && (
+              <div className="border rounded-lg p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-semibold">Bills to Insert ({rows.length})</Label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setRows([])}
+                  >
+                    Clear All
+                  </Button>
+                </div>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  {rows.slice(0, 3).map((row, idx) => (
+                    <div key={idx} className="flex justify-between">
+                      <span>{row.source}</span>
+                      <span className="font-medium">
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(row.amount)}
+                      </span>
+                    </div>
+                  ))}
+                  {rows.length > 3 && (
+                    <div className="text-xs text-muted-foreground">
+                      ...and {rows.length - 3} more
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter className="flex items-center justify-between">
@@ -202,6 +261,27 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
         onConfirm={() => {}}
         type="block"
         contextInfo=""
+      />
+
+      {/* Insert Bills Picker */}
+      {currentBand && (
+        <PickFixedBillsDialog
+          open={showInsertBills}
+          onOpenChange={setShowInsertBills}
+          band={currentBand}
+          onInsert={handleInsertBills}
+          onManageLibrary={() => setShowManageBills(true)}
+          refreshTrigger={billsRefreshTrigger}
+        />
+      )}
+
+      {/* Manage Bills Library */}
+      <ManageFixedBillsDialog
+        open={showManageBills}
+        onOpenChange={(open) => {
+          setShowManageBills(open);
+          if (!open) setBillsRefreshTrigger(t => t + 1);
+        }}
       />
     </>
   );

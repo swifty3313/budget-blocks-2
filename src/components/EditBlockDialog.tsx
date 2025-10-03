@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
 import { Plus, Trash2, GripVertical, FileText, Save, BookMarked } from "lucide-react";
 import { toast } from "sonner";
+import { showUpdateToast, showErrorToast } from "@/lib/toastUtils";
 import { format, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
 import type { Block, Row, BlockType } from "@/types";
@@ -138,43 +139,43 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
 
   const handleSave = () => {
     if (!title.trim()) {
-      toast.error("Title cannot be empty");
+      showErrorToast("Title cannot be empty");
       return;
     }
 
     if (rows.length === 0) {
-      toast.error("Block must have at least one row");
+      showErrorToast("Block must have at least one row");
       return;
     }
 
     // Validation
     for (const row of rows) {
       if (!row.owner?.trim()) {
-        toast.error("All rows must have an owner");
+        showErrorToast("All rows must have an owner");
         return;
       }
       if (!row.amount || row.amount <= 0) {
-        toast.error("All rows must have a positive amount");
+        showErrorToast("All rows must have a positive amount");
         return;
       }
       if (blockType === 'Income' && !row.toBaseId) {
-        toast.error("Income rows must have a destination (To Base)");
+        showErrorToast("Income rows must have a destination (To Base)");
         return;
       }
       if (blockType === 'Fixed Bill' && !row.fromBaseId) {
-        toast.error("Fixed Bill rows must have a source (From Base)");
+        showErrorToast("Fixed Bill rows must have a source (From Base)");
         return;
       }
       if (blockType === 'Flow') {
         if (!row.fromBaseId) {
-          toast.error("Flow rows must have a source (From Base)");
+          showErrorToast("Flow rows must have a source (From Base)");
           return;
         }
         // Category is optional for Flow rows
         // Validate basis for % rows
         if (row.flowMode === '%') {
           if (!allocationBasis || allocationBasis <= 0) {
-            toast.error("Allocation Basis is required for percentage-based rows");
+            showErrorToast("Allocation Basis is required for percentage-based rows");
             return;
           }
         }
@@ -182,7 +183,7 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
     }
 
     updateBlock(block.id, { rows, title: title.trim(), date });
-    toast.success("Block updated");
+    showUpdateToast('Block');
     onOpenChange(false);
   };
 
@@ -206,13 +207,11 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
   const handleInsertBills = (newRows: Row[]) => {
     setRows([...rows, ...newRows]);
     setShowInsertBills(false);
-    toast.success(`Inserted ${newRows.length} bill(s)`);
   };
 
   const handleApplyAllocation = (newRows: Row[]) => {
     setRows([...rows, ...newRows]);
     setShowApplyAllocation(false);
-    toast.success(`Inserted ${newRows.length} allocation(s)`);
   };
 
   const calculateTotal = () => {

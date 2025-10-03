@@ -104,8 +104,8 @@ export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onMan
     const selectedBills = sortedBills.filter((b) => selectedBillIds.has(b.id));
     
     const rows: Row[] = selectedBills.map((bill) => {
-      // Use computed date if in band, otherwise use band end (for out-of-band bills)
-      const date = bill.dateInBand || band.endDate;
+      // Use computed date if in band, otherwise use band start date
+      const date = bill.dateInBand || band.startDate;
       
       return {
         id: uuidv4(),
@@ -121,7 +121,7 @@ export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onMan
     });
 
     onInsert(rows);
-    toast.success(`Inserted ${rows.length} bill(s)`);
+    toast.success(`Inserted ${rows.length} bill(s) into block`);
     setSelectedBillIds(new Set());
     onOpenChange(false);
   };

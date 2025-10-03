@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useStore } from "@/lib/store";
 import { toast } from "sonner";
+import { showCreateToast, showUpdateToast, showErrorToast } from "@/lib/toastUtils";
 import { Plus, Trash2, Search, Undo } from "lucide-react";
 import { getDisplayValue } from "@/lib/displayUtils";
 import { billsLibrary, type BillItem } from "@/lib/billsLibrary";
@@ -90,7 +91,7 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
 
   const handleSaveBill = () => {
     if (!formData.ownerId || !formData.vendor || !formData.fromBaseId) {
-      toast.error("Please fill in all required fields");
+      showErrorToast("Please fill in all required fields (Owner, Vendor, From Base)");
       return;
     }
 
@@ -108,7 +109,11 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
       active: true,
     });
 
-    toast.success(editingBill ? "Bill updated" : "Bill added");
+    if (editingBill) {
+      showUpdateToast('Bill');
+    } else {
+      showCreateToast('Bill');
+    }
     resetForm();
     setRefreshKey(k => k + 1);
   };
