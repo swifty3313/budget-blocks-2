@@ -19,8 +19,7 @@ import { ManageBlockDialog } from "@/components/ManageBlockDialog";
 import { CalculatorPopover } from "@/components/CalculatorPopover";
 import { LedgerFilterBar, type LedgerFilters } from "@/components/LedgerFilterBar";
 import { BandSettingsDialog } from "@/components/BandSettingsDialog";
-import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
-import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
+import { InsertBillsDialog } from "@/components/InsertBillsDialog";
 import { QuickExpenseDialog } from "@/components/QuickExpenseDialog";
 import { CreateBlockDialog } from "@/components/CreateBlockDialog";
 import { EditBlockDialog } from "@/components/EditBlockDialog";
@@ -78,8 +77,6 @@ export function LedgerPanel({
   const [showArchived, setShowArchived] = useState(false);
   const [bandSettingsId, setBandSettingsId] = useState<string | null>(null);
   const [pickBillsBand, setPickBillsBand] = useState<PayPeriodBand | null>(null);
-  const [showManageBills, setShowManageBills] = useState(false);
-  const [billsRefreshTrigger, setBillsRefreshTrigger] = useState(0);
   const [quickExpenseBand, setQuickExpenseBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date } | null>(null);
   const [lastInsertedBlockId, setLastInsertedBlockId] = useState<string | null>(null);
   const [createBlockBand, setCreateBlockBand] = useState<{ id: string; title: string; startDate: Date; endDate: Date; type: BlockType; availableToAllocate?: number } | null>(null);
@@ -947,31 +944,17 @@ export function LedgerPanel({
         onOpenChange={(open) => !open && setBandSettingsId(null)}
       />
 
-      {/* Pick Fixed Bills Dialog */}
-      <PickFixedBillsDialog
-        open={!!pickBillsBand}
-        onOpenChange={(open) => {
-          if (!open) setPickBillsBand(null);
-        }}
-        band={pickBillsBand}
-        onInsert={handleInsertFixedBills}
-        onManageLibrary={() => {
-          setShowManageBills(true);
-        }}
-        refreshTrigger={billsRefreshTrigger}
-      />
-
-      {/* Manage Fixed Bills Dialog */}
-      <ManageFixedBillsDialog
-        open={showManageBills}
-        onOpenChange={(open) => {
-          setShowManageBills(open);
-          if (!open) {
-            // Refresh bills list when closing
-            setBillsRefreshTrigger(t => t + 1);
-          }
-        }}
-      />
+      {/* Insert Bills Dialog */}
+      {pickBillsBand && (
+        <InsertBillsDialog
+          open={!!pickBillsBand}
+          onOpenChange={(open) => {
+            if (!open) setPickBillsBand(null);
+          }}
+          band={pickBillsBand}
+          onInsert={handleInsertFixedBills}
+        />
+      )}
 
       {/* Quick Expense Dialog */}
       {quickExpenseBand && (

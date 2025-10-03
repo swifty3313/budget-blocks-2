@@ -16,7 +16,7 @@ import type { BlockType, Row, Block } from "@/types";
 import { DatePickerField } from "@/components/shared/DatePickerField";
 import { OwnerSelect } from "@/components/shared/OwnerSelect";
 import { CategorySelect } from "@/components/shared/CategorySelect";
-import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
+import { InsertBillsDialog } from "@/components/InsertBillsDialog";
 import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
 import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
@@ -809,19 +809,20 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
     />
     
     {/* Insert Bills Dialog (Fixed Bill only) */}
-    <PickFixedBillsDialog
-      open={showInsertBills}
-      onOpenChange={setShowInsertBills}
-      band={bandId ? {
-        id: bandId,
-        title: bandInfo.title,
-        startDate: bandInfo.startDate,
-        endDate: bandInfo.endDate,
-        order: 0,
-      } : null}
-      onInsert={handleInsertBills}
-      onManageLibrary={() => {}}
-    />
+    {bandId && (
+      <InsertBillsDialog
+        open={showInsertBills}
+        onOpenChange={setShowInsertBills}
+        band={{
+          id: bandId,
+          title: bandInfo.title,
+          startDate: bandInfo.startDate,
+          endDate: bandInfo.endDate,
+          order: 0,
+        }}
+        onInsert={handleInsertBills}
+      />
+    )}
 
     <ManageTemplatesDialog
       open={showManageTemplates}

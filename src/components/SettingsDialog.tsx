@@ -6,7 +6,7 @@ import { useStore } from "@/lib/store";
 import { ManageBasesDialog } from "@/components/ManageBasesDialog";
 import { ManagePayPeriodsDialog } from "@/components/ManagePayPeriodsDialog";
 import { ManageTemplatesDialog } from "@/components/ManageTemplatesDialog";
-import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
+import { ManageBillsDialog } from "@/components/ManageBillsDialog";
 import { ManageOwnersDialog } from "@/components/shared/ManageOwnersDialog";
 import { ManageCategoriesDialog } from "@/components/shared/ManageCategoriesDialog";
 import { UndoHistoryPanel } from "@/components/UndoHistoryPanel";
@@ -250,7 +250,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       <ManageBasesDialog open={showBasesDialog} onOpenChange={setShowBasesDialog} />
       <ManagePayPeriodsDialog open={showPeriodsDialog} onOpenChange={setShowPeriodsDialog} />
       <ManageTemplatesDialog open={showTemplatesDialog} onOpenChange={setShowTemplatesDialog} />
-      <ManageFixedBillsDialog open={showBillsDialog} onOpenChange={setShowBillsDialog} />
+      <ManageBillsDialog open={showBillsDialog} onOpenChange={setShowBillsDialog} />
       <ManageOwnersDialog open={showOwnersDialog} onOpenChange={setShowOwnersDialog} />
       <ManageCategoriesDialog open={showCategoriesDialog} onOpenChange={setShowCategoriesDialog} />
     </>

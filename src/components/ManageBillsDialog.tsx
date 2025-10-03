@@ -11,15 +11,14 @@ import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { showCreateToast, showUpdateToast, showErrorToast } from "@/lib/toastUtils";
 import { Plus, Trash2, Search, Undo } from "lucide-react";
-import { getDisplayValue } from "@/lib/displayUtils";
 import { billsLibrary, type BillItem } from "@/lib/billsLibrary";
 
-interface ManageFixedBillsDialogProps {
+interface ManageBillsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsDialogProps) {
+export function ManageBillsDialog({ open, onOpenChange }: ManageBillsDialogProps) {
   const bases = useStore((state) => state.bases);
   const owners = useStore((state) => state.owners);
   const categories = useStore((state) => state.categories);
@@ -27,12 +26,9 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
 
   const [bills, setBills] = useState<BillItem[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
-
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingBill, setEditingBill] = useState<BillItem | null>(null);
-
-  // Form state
   const [formData, setFormData] = useState({
     ownerId: "",
     vendor: "",
@@ -66,12 +62,9 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
     );
   }, [bills, searchTerm, owners, categories]);
 
-  // Sort bills by active status, then by vendor name
+  // Sort bills by vendor name
   const sortedBills = useMemo(() => {
-    return [...filteredBills].sort((a, b) => {
-      if (a.active !== b.active) return a.active ? -1 : 1;
-      return a.vendor.localeCompare(b.vendor);
-    });
+    return [...filteredBills].sort((a, b) => a.vendor.localeCompare(b.vendor));
   }, [filteredBills]);
 
   const resetForm = () => {
@@ -103,7 +96,7 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
       addToMasterList('categories', formData.defaultCategoryId);
     }
 
-    const saved = billsLibrary.upsert({
+    billsLibrary.upsert({
       id: editingBill?.id,
       ...formData,
       active: true,
@@ -114,6 +107,7 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
     } else {
       showCreateToast('Bill');
     }
+    
     resetForm();
     setRefreshKey(k => k + 1);
   };
@@ -175,9 +169,9 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage Bills</DialogTitle>
+          <DialogTitle>Manage Bills Library</DialogTitle>
           <DialogDescription>
-            Create and manage bill templates. Use the picker to insert bills into specific bands.
+            Create and manage bill templates. Use "Insert Bills" in Fixed blocks to add them to specific pay periods.
           </DialogDescription>
         </DialogHeader>
 
@@ -195,7 +189,7 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
             </div>
             <Button onClick={() => setShowAddForm(!showAddForm)}>
               <Plus className="w-4 h-4 mr-2" />
-              Add Bill
+              New Bill
             </Button>
           </div>
 
@@ -316,7 +310,6 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[80px]">Status</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Vendor</TableHead>
                   <TableHead>From Base</TableHead>
@@ -324,13 +317,13 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
                   <TableHead>Due Day</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Autopay</TableHead>
-                  <TableHead className="w-[80px]">Actions</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedBills.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       {searchTerm ? "No bills match your search" : "No bills yet. Add your first bill above."}
                     </TableCell>
                   </TableRow>
@@ -340,30 +333,17 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
                     const baseName = bases.find((b) => b.id === bill.fromBaseId)?.name || "Unknown";
                     const categoryName = bill.defaultCategoryId 
                       ? (categories.find(c => c === bill.defaultCategoryId) || bill.defaultCategoryId)
-                      : "-";
+                      : "—";
                     
                     return (
                       <TableRow key={bill.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={bill.active}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                billsLibrary.restore(bill.id);
-                              } else {
-                                billsLibrary.softDelete(bill.id);
-                              }
-                              setRefreshKey(k => k + 1);
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>{getDisplayValue(ownerName)}</TableCell>
-                        <TableCell className="font-medium">{getDisplayValue(bill.vendor)}</TableCell>
+                        <TableCell>{ownerName}</TableCell>
+                        <TableCell className="font-medium">{bill.vendor}</TableCell>
                         <TableCell>{baseName}</TableCell>
                         <TableCell className="text-right">{formatCurrency(bill.defaultAmount)}</TableCell>
                         <TableCell>{bill.dueDay === 'Last' ? 'Last Day' : bill.dueDay}</TableCell>
                         <TableCell className="text-muted-foreground">{categoryName}</TableCell>
-                        <TableCell>{bill.autopay ? "✓" : "-"}</TableCell>
+                        <TableCell className="text-center">{bill.autopay ? "✓" : "—"}</TableCell>
                         <TableCell>
                           <div className="flex gap-1">
                             <Button

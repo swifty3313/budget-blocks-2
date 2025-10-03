@@ -10,8 +10,7 @@ import { Trash2, FileText } from "lucide-react";
 import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
 import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
-import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
-import { ManageFixedBillsDialog } from "@/components/ManageFixedBillsDialog";
+import { InsertBillsDialog } from "@/components/InsertBillsDialog";
 import { showCreateToast, showErrorToast } from "@/lib/toastUtils";
 import type { Block, Row } from "@/types";
 
@@ -33,8 +32,6 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showInsertBills, setShowInsertBills] = useState(false);
-  const [showManageBills, setShowManageBills] = useState(false);
-  const [billsRefreshTrigger, setBillsRefreshTrigger] = useState(0);
   const [lastCreatedBlock, setLastCreatedBlock] = useState<Block | null>(null);
 
   const currentBand = bands.find(b => b.id === bandId);
@@ -77,7 +74,7 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
     };
 
     setLastCreatedBlock(block);
-    showCreateToast('Fixed Bill block');
+    showCreateToast('Fixed block');
     
     // Reset form
     resetForm();
@@ -121,9 +118,9 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
           <DialogHeader>
             <div className="flex items-center justify-between">
               <div>
-                <DialogTitle>Add Fixed Bill Block</DialogTitle>
+                <DialogTitle>Create Fixed Block</DialogTitle>
                 <DialogDescription>
-                  Create a new fixed bill block in {bandInfo.title}
+                  Create a new fixed block in {bandInfo.title}
                 </DialogDescription>
               </div>
               <Button
@@ -263,26 +260,15 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
         contextInfo=""
       />
 
-      {/* Insert Bills Picker */}
+      {/* Insert Bills Dialog */}
       {currentBand && (
-        <PickFixedBillsDialog
+        <InsertBillsDialog
           open={showInsertBills}
           onOpenChange={setShowInsertBills}
           band={currentBand}
           onInsert={handleInsertBills}
-          onManageLibrary={() => setShowManageBills(true)}
-          refreshTrigger={billsRefreshTrigger}
         />
       )}
-
-      {/* Manage Bills Library */}
-      <ManageFixedBillsDialog
-        open={showManageBills}
-        onOpenChange={(open) => {
-          setShowManageBills(open);
-          if (!open) setBillsRefreshTrigger(t => t + 1);
-        }}
-      />
     </>
   );
 }
