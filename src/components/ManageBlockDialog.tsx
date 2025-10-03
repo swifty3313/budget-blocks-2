@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { Block, Row } from "@/types";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { showUndoToast } from "@/lib/undoToast";
+import { getDisplayValue } from "@/lib/displayUtils";
 
 interface ManageBlockDialogProps {
   block: Block | null;
@@ -274,13 +275,13 @@ export function ManageBlockDialog({ block, open, onOpenChange, onDelete }: Manag
                     <div className="flex-1 space-y-1">
                       {cardViewFields.map((field) => {
                         let value = '';
-                        if (field === 'source') value = row.source || '-';
-                        else if (field === 'owner') value = row.owner;
+                        if (field === 'source') value = getDisplayValue(row.source, '-');
+                        else if (field === 'owner') value = getDisplayValue(row.owner, '-');
                         else if (field === 'fromBaseId') value = bases.find(b => b.id === row.fromBaseId)?.name || '-';
                         else if (field === 'amount') value = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(row.amount);
-                        else if (field === 'category') value = row.category || '-';
+                        else if (field === 'category') value = getDisplayValue(row.category, '-');
                         else if (field === 'date') value = format(row.date, 'MMM d, yyyy');
-                        else if (field === 'notes') value = row.notes || '-';
+                        else if (field === 'notes') value = getDisplayValue(row.notes, '-');
                         
                         return (
                           <div key={field} className="text-sm">

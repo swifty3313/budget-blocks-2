@@ -11,6 +11,7 @@ import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { Plus, Trash2, Search } from "lucide-react";
 import type { FixedBill } from "@/types";
+import { getDisplayValue } from "@/lib/displayUtils";
 
 interface ManageFixedBillsDialogProps {
   open: boolean;
@@ -300,14 +301,14 @@ export function ManageFixedBillsDialog({ open, onOpenChange }: ManageFixedBillsD
                           }
                         />
                       </TableCell>
-                      <TableCell>{bill.owner}</TableCell>
-                      <TableCell className="font-medium">{bill.vendor}</TableCell>
+                      <TableCell>{getDisplayValue(bill.owner)}</TableCell>
+                      <TableCell className="font-medium">{getDisplayValue(bill.vendor)}</TableCell>
                       <TableCell>
                         {bases.find((b) => b.id === bill.fromBaseId)?.name || "Unknown"}
                       </TableCell>
                       <TableCell className="text-right">{formatCurrency(bill.defaultAmount)}</TableCell>
                       <TableCell>{bill.dueDay === 'Last' ? 'Last Day' : bill.dueDay}</TableCell>
-                      <TableCell className="text-muted-foreground">{bill.category || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{getDisplayValue(bill.category, "-")}</TableCell>
                       <TableCell>{bill.autopay ? "✓" : "-"}</TableCell>
                       <TableCell>
                         <Button

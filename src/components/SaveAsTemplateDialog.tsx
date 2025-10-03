@@ -10,6 +10,7 @@ import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 import type { Block, BlockType } from "@/types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getDisplayValue } from "@/lib/displayUtils";
 
 interface SaveAsTemplateDialogProps {
   open: boolean;
@@ -132,9 +133,9 @@ export function SaveAsTemplateDialog({ open, onOpenChange, block }: SaveAsTempla
                   <TableBody>
                     {block.rows.map((row) => (
                       <TableRow key={row.id}>
-                        <TableCell className="text-xs">{row.owner}</TableCell>
-                        {block.type === 'Income' && <TableCell className="text-xs">{row.source || "-"}</TableCell>}
-                        {block.type === 'Fixed Bill' && <TableCell className="text-xs">{row.source || "-"}</TableCell>}
+                        <TableCell className="text-xs">{getDisplayValue(row.owner)}</TableCell>
+                        {block.type === 'Income' && <TableCell className="text-xs">{getDisplayValue(row.source, "-")}</TableCell>}
+                        {block.type === 'Fixed Bill' && <TableCell className="text-xs">{getDisplayValue(row.source, "-")}</TableCell>}
                         {block.type === 'Flow' && <TableCell className="text-xs">{getBaseName(row.fromBaseId)}</TableCell>}
                         {block.type === 'Flow' && <TableCell className="text-xs">{getBaseName(row.toBaseId)}</TableCell>}
                         {block.type === 'Income' && <TableCell className="text-xs">{getBaseName(row.toBaseId)}</TableCell>}
@@ -142,8 +143,8 @@ export function SaveAsTemplateDialog({ open, onOpenChange, block }: SaveAsTempla
                         {block.type === 'Flow' && <TableCell className="text-xs">{row.flowMode || "Fixed"}</TableCell>}
                         {block.type === 'Flow' && <TableCell className="text-xs">{row.flowValue || 0}</TableCell>}
                         {block.type !== 'Flow' && <TableCell className="text-xs">${row.amount.toFixed(2)}</TableCell>}
-                        <TableCell className="text-xs">{row.category || "-"}</TableCell>
-                        <TableCell className="text-xs">{row.notes || "-"}</TableCell>
+                        <TableCell className="text-xs">{getDisplayValue(row.category, "-")}</TableCell>
+                        <TableCell className="text-xs">{getDisplayValue(row.notes, "-")}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

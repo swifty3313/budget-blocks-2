@@ -11,6 +11,7 @@ import { Search, Settings } from "lucide-react";
 import { addDays, getDaysInMonth, lastDayOfMonth, setDate } from "date-fns";
 import type { PayPeriodBand, FixedBill, Row } from "@/types";
 import { v4 as uuidv4 } from "uuid";
+import { getDisplayValue } from "@/lib/displayUtils";
 
 interface PickFixedBillsDialogProps {
   open: boolean;
@@ -232,8 +233,8 @@ export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onMan
                           onCheckedChange={() => handleToggleSelect(bill.id)}
                         />
                       </TableCell>
-                      <TableCell>{bill.owner}</TableCell>
-                      <TableCell className="font-medium">{bill.vendor}</TableCell>
+                      <TableCell>{getDisplayValue(bill.owner)}</TableCell>
+                      <TableCell className="font-medium">{getDisplayValue(bill.vendor)}</TableCell>
                       <TableCell>
                         {bases.find((b) => b.id === bill.fromBaseId)?.name || "Unknown"}
                       </TableCell>
@@ -248,7 +249,7 @@ export function PickFixedBillsDialog({ open, onOpenChange, band, onInsert, onMan
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{bill.category || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{getDisplayValue(bill.category, "-")}</TableCell>
                       <TableCell>{bill.autopay ? "✓" : "-"}</TableCell>
                     </TableRow>
                   ))

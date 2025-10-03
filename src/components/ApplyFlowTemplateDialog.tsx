@@ -11,6 +11,7 @@ import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import type { Block, Row } from "@/types";
+import { getDisplayValue } from "@/lib/displayUtils";
 
 interface ApplyFlowTemplateDialogProps {
   open: boolean;
@@ -211,7 +212,7 @@ export function ApplyFlowTemplateDialog({
                 <option value="">Select row...</option>
                 {selectedRows.map(row => (
                   <option key={row.id} value={row.id}>
-                    {row.source || "Unnamed"} ({row.owner})
+                    {getDisplayValue(row.source, "Unnamed")} ({getDisplayValue(row.owner)})
                   </option>
                 ))}
               </select>
@@ -273,8 +274,8 @@ export function ApplyFlowTemplateDialog({
                             onCheckedChange={() => handleToggleRow(row.id)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{row.owner}</TableCell>
-                        <TableCell>{row.source || "-"}</TableCell>
+                        <TableCell className="font-medium">{getDisplayValue(row.owner)}</TableCell>
+                        <TableCell>{getDisplayValue(row.source, "-")}</TableCell>
                         <TableCell>
                           {bases.find(b => b.id === row.fromBaseId)?.name || "-"}
                         </TableCell>
@@ -283,11 +284,11 @@ export function ApplyFlowTemplateDialog({
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
-                            {row.type || "-"}
+                            {getDisplayValue(row.type, "-")}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-muted-foreground text-xs">
-                          {row.category || "-"}
+                          {getDisplayValue(row.category, "-")}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">
