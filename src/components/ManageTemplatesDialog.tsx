@@ -19,11 +19,15 @@ interface ManageTemplatesDialogProps {
 
 export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDialogProps) {
   const library = useStore((state) => state.library);
+  const fixedBills = useStore((state) => state.fixedBills);
+  const bases = useStore((state) => state.bases);
   const removeFromLibrary = useStore((state) => state.removeFromLibrary);
   const updateTemplate = useStore((state) => state.updateTemplate);
   const duplicateTemplate = useStore((state) => state.duplicateTemplate);
+  const updateFixedBill = useStore((state) => state.updateFixedBill);
+  const deleteFixedBill = useStore((state) => state.deleteFixedBill);
   
-  const [activeTab, setActiveTab] = useState<"income" | "fixed" | "flow">("income");
+  const [activeTab, setActiveTab] = useState<"income" | "fixed" | "flow" | "bills">("income");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -33,6 +37,8 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
 
   // Filter templates by type and search
   const filteredTemplates = useMemo(() => {
+    if (activeTab === 'bills') return []; // Bills handled separately
+    
     const typeMap = {
       income: 'Income',
       fixed: 'Fixed Bill',
@@ -54,6 +60,22 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
     );
   }, [library, activeTab, searchQuery]);
 
+  // Filter bills
+  const filteredBills = useMemo(() => {
+    if (activeTab !== 'bills') return [];
+    
+    const activeBills = fixedBills.filter(b => b.active);
+    
+    if (!searchQuery.trim()) return activeBills;
+    
+    const query = searchQuery.toLowerCase();
+    return activeBills.filter(b =>
+      b.vendor.toLowerCase().includes(query) ||
+      b.owner.toLowerCase().includes(query) ||
+      b.category?.toLowerCase().includes(query)
+    );
+  }, [fixedBills, activeTab, searchQuery]);
+
   const getBlockIcon = (type: string) => {
     switch (type) {
       case 'Income': return DollarSign;
@@ -73,10 +95,11 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
   };
 
   const handleSelectAll = () => {
-    if (selectedIds.size === filteredTemplates.length) {
+    const currentItems = activeTab === 'bills' ? filteredBills : filteredTemplates;
+    if (selectedIds.size === currentItems.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredTemplates.map(t => t.id)));
+      setSelectedIds(new Set(currentItems.map(t => t.id)));
     }
   };
 
@@ -165,6 +188,7 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
   const incomeTemplates = library.filter(t => t.type === 'Income');
   const fixedTemplates = library.filter(t => t.type === 'Fixed Bill');
   const flowTemplates = library.filter(t => t.type === 'Flow');
+  const activeBills = fixedBills.filter(b => b.active);
 
   return (
     <>
@@ -178,7 +202,7 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="income">
                 Income
                 {incomeTemplates.length > 0 && (
@@ -203,6 +227,14 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="bills">
+                Bills Library
+                {activeBills.length > 0 && (
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {activeBills.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
             </TabsList>
 
             <div className="space-y-3 mt-4 flex-1 flex flex-col overflow-hidden">
@@ -221,9 +253,9 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
                   size="sm"
                   variant="outline"
                   onClick={handleSelectAll}
-                  disabled={filteredTemplates.length === 0}
+                  disabled={activeTab === 'bills' ? filteredBills.length === 0 : filteredTemplates.length === 0}
                 >
-                  {selectedIds.size === filteredTemplates.length ? "Deselect All" : "Select All"}
+                  {selectedIds.size === (activeTab === 'bills' ? filteredBills.length : filteredTemplates.length) ? "Deselect All" : "Select All"}
                 </Button>
                 <Button
                   size="sm"
@@ -236,17 +268,62 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
                 </Button>
               </div>
 
-              {/* Templates list */}
+              {/* Templates/Bills list */}
               <TabsContent value={activeTab} className="flex-1 overflow-auto mt-0">
-                {filteredTemplates.length === 0 ? (
-                  <div className="text-center py-12">
-                    <p className="text-sm text-muted-foreground">
-                      {searchQuery ? "No templates found" : "No templates yet"}
-                    </p>
-                  </div>
+                {activeTab === 'bills' ? (
+                  filteredBills.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-sm text-muted-foreground">
+                        {searchQuery ? "No bills found" : "No bills yet"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredBills.map((bill) => (
+                        <div
+                          key={bill.id}
+                          className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/30 transition-colors"
+                        >
+                          <Checkbox
+                            checked={selectedIds.has(bill.id)}
+                            onCheckedChange={() => handleToggleSelect(bill.id)}
+                          />
+                          <Receipt className="w-5 h-5 flex-shrink-0 text-warning" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-semibold text-sm truncate">{bill.vendor}</h4>
+                              <Badge variant="outline" className="text-xs">
+                                {formatCurrency(bill.defaultAmount)}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {bill.owner} • From: {bases.find(b => b.id === bill.fromBaseId)?.name || 'Unknown'} • Due: {bill.dueDay === 'Last' ? 'Last Day' : bill.dueDay}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleDeleteSingle(bill.id)}
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
                 ) : (
-                  <div className="space-y-2">
-                    {filteredTemplates.map((template) => {
+                  filteredTemplates.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-sm text-muted-foreground">
+                        {searchQuery ? "No templates found" : "No templates yet"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {filteredTemplates.map((template) => {
                       const Icon = getBlockIcon(template.type);
                       const color = getBlockColor(template.type);
                       const isRenaming = renamingId === template.id;
@@ -343,6 +420,7 @@ export function ManageTemplatesDialog({ open, onOpenChange }: ManageTemplatesDia
                       );
                     })}
                   </div>
+                  )
                 )}
               </TabsContent>
             </div>

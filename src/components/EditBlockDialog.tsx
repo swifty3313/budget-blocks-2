@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useStore } from "@/lib/store";
-import { Plus, Trash2, GripVertical, FileText } from "lucide-react";
+import { Plus, Trash2, GripVertical, FileText, Save, BookMarked } from "lucide-react";
 import { toast } from "sonner";
 import { format, startOfDay } from "date-fns";
 import { v4 as uuidv4 } from "uuid";
@@ -16,6 +16,7 @@ import { PickFixedBillsDialog } from "@/components/PickFixedBillsDialog";
 import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
 import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
 import { SaveAsTemplateDialog } from "@/components/SaveAsTemplateDialog";
+import { SaveRowsAsBillsDialog } from "@/components/SaveRowsAsBillsDialog";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { showUndoToast } from "@/lib/undoToast";
 import { DatePickerField } from "@/components/shared/DatePickerField";
@@ -53,6 +54,7 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
   const [showApplyAllocation, setShowApplyAllocation] = useState(false);
   const [showDuplicate, setShowDuplicate] = useState(false);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
+  const [showSaveRowsAsBills, setShowSaveRowsAsBills] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   
   // Flow allocation state
@@ -241,14 +243,25 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
               </div>
               <div className="flex gap-2">
                 {blockType === 'Fixed Bill' && currentBand && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowInsertBills(true)}
-                  >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Insert Bills
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowInsertBills(true)}
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Insert Bills
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowSaveRowsAsBills(true)}
+                      disabled={rows.length === 0}
+                    >
+                      <BookMarked className="w-4 h-4 mr-2" />
+                      Save Row(s) as Bills...
+                    </Button>
+                  </>
                 )}
                 {blockType === 'Flow' && (
                   <Button
@@ -574,30 +587,38 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
             )}
           </div>
 
-          <DialogFooter className="flex items-center justify-between">
-            <div className="flex gap-2">
-              <Button 
-                variant="destructive" 
-                onClick={() => setShowDeleteConfirm(true)}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete Block
-              </Button>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleDuplicate}>
-                Duplicate to...
-              </Button>
-              <Button variant="outline" onClick={() => setShowSaveAsTemplate(true)}>
-                <FileText className="w-4 h-4 mr-2" />
-                Save to Library
-              </Button>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave}>
-                Save Changes
-              </Button>
+          <DialogFooter>
+            <div className="flex w-full justify-between items-center">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(true)}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Block
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleDuplicate}
+                >
+                  Duplicate to...
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowSaveAsTemplate(true)}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save to Library
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave}>
+                  Save Changes
+                </Button>
+              </div>
             </div>
           </DialogFooter>
         </DialogContent>
@@ -646,6 +667,15 @@ export function EditBlockDialog({ block, open, onOpenChange, onDelete, available
           allocationBasisValue: blockType === 'Flow' ? allocationBasis : undefined,
         } : null}
       />
+
+      {/* Save Rows as Bills Dialog (Fixed Bill only) */}
+      {blockType === 'Fixed Bill' && (
+        <SaveRowsAsBillsDialog
+          open={showSaveRowsAsBills}
+          onOpenChange={setShowSaveRowsAsBills}
+          rows={rows}
+        />
+      )}
       
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmDialog

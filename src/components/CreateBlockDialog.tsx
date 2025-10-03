@@ -270,9 +270,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
     }
   };
 
-  const handleSaveToLibrary = async () => {
-    if (isSaving) return;
-
+  const handleOpenSaveToLibrary = () => {
     if (!title.trim()) {
       toast.error("Please enter a title");
       return;
@@ -290,26 +288,21 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
       }
     }
 
-    setIsSaving(true);
-
-    try {
-      console.debug('Saving to library', { type: blockType, title: title.trim(), rowCount: rows.length });
-      addBlock({
-        type: blockType,
-        title: title.trim(),
-        date: new Date(),
-        tags: [],
-        rows: rows,
-        bandId: '',
-        isTemplate: true,
-      });
-      toast.success("Saved to library");
-    } catch (error) {
-      console.error('Failed to save to library', error);
-      toast.error(`Couldn't save to library: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setIsSaving(false);
-    }
+    // Create a temporary block to pass to SaveAsTemplateDialog
+    const tempBlock: Block = {
+      id: uuidv4(),
+      type: blockType,
+      title: title.trim(),
+      date,
+      tags: [],
+      rows: rows,
+      bandId: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      allocationBasisValue: blockType === 'Flow' ? allocationBasis : undefined,
+    };
+    setLastInsertedBlock(tempBlock);
+    setSaveTemplateDialogOpen(true);
   };
 
   const handleInsertTemplate = (templateId: string) => {
@@ -777,7 +770,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
             <Button variant="outline" onClick={() => setShowDuplicate(true)} disabled={isSaving}>
               Duplicate to...
             </Button>
-            <Button variant="outline" onClick={handleSaveToLibrary} disabled={isSaving}>
+            <Button variant="outline" onClick={handleOpenSaveToLibrary} disabled={isSaving}>
               <FileText className="w-4 h-4 mr-2" />
               Save to Library
             </Button>
