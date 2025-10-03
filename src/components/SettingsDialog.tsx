@@ -10,6 +10,7 @@ import { ManageBillsDialog } from "@/components/ManageBillsDialog";
 import { ManageOwnersDialog } from "@/components/shared/ManageOwnersDialog";
 import { ManageCategoriesDialog } from "@/components/shared/ManageCategoriesDialog";
 import { UndoHistoryPanel } from "@/components/UndoHistoryPanel";
+import { WelcomeDialog } from "@/components/WelcomeDialog";
 import { Button } from "@/components/ui/button";
 import { Download, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [showBillsDialog, setShowBillsDialog] = useState(false);
   const [showOwnersDialog, setShowOwnersDialog] = useState(false);
   const [showCategoriesDialog, setShowCategoriesDialog] = useState(false);
+  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
 
   const handleExport = () => {
     const data = exportData();
@@ -225,19 +227,33 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               </TabsContent>
 
               <TabsContent value="data" className="m-0">
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Import or export all your Budget Blocks data
-                  </p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={handleImport}>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Import Data
-                    </Button>
-                    <Button variant="outline" onClick={handleExport}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Export Data
-                    </Button>
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Import or export all your Budget Blocks data
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={handleImport}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Import Data
+                      </Button>
+                      <Button variant="outline" onClick={handleExport}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Data
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="border-t pt-6 space-y-4">
+                    <div>
+                      <h4 className="font-medium mb-2">Reset & Onboarding</h4>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Restart the welcome tutorial to see the onboarding process again
+                      </p>
+                      <Button variant="outline" onClick={() => setShowWelcomeDialog(true)}>
+                        Restart Onboarding
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </TabsContent>
@@ -253,6 +269,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       <ManageBillsDialog open={showBillsDialog} onOpenChange={setShowBillsDialog} />
       <ManageOwnersDialog open={showOwnersDialog} onOpenChange={setShowOwnersDialog} />
       <ManageCategoriesDialog open={showCategoriesDialog} onOpenChange={setShowCategoriesDialog} />
+      <WelcomeDialog open={showWelcomeDialog} onOpenChange={setShowWelcomeDialog} />
     </>
   );
 }
