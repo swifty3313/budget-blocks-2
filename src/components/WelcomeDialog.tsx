@@ -6,6 +6,17 @@ import { CheckCircle2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { addMonths, startOfMonth, endOfMonth } from "date-fns";
+import { resetApp } from "@/lib/resetApp";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface WelcomeDialogProps {
   open: boolean;
@@ -19,6 +30,8 @@ export function WelcomeDialog({ open, onOpenChange }: WelcomeDialogProps) {
   const addToMasterList = useStore((state) => state.addToMasterList);
 
   const [loading, setLoading] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const handleLoadSampleData = () => {
     setLoading(true);
@@ -90,7 +103,27 @@ export function WelcomeDialog({ open, onOpenChange }: WelcomeDialogProps) {
   };
 
   const handleStartFresh = () => {
-    onOpenChange(false);
+    setShowResetConfirm(true);
+  };
+
+  const handleConfirmReset = async () => {
+    setShowResetConfirm(false);
+    setResetting(true);
+
+    try {
+      await resetApp();
+      toast.success("Data cleared. Starting fresh!");
+      onOpenChange(false);
+      
+      // Small delay to allow toast to show before potential page refresh
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error) {
+      console.error('Reset failed:', error);
+      toast.error("Could not reset. Please refresh the page and try again.");
+      setResetting(false);
+    }
   };
 
   return (
@@ -158,15 +191,36 @@ export function WelcomeDialog({ open, onOpenChange }: WelcomeDialogProps) {
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={handleStartFresh}>
-            Start Fresh
+          <Button 
+            variant="outline" 
+            onClick={handleStartFresh}
+            disabled={resetting || loading}
+          >
+            {resetting ? "Clearing..." : "Start Fresh"}
           </Button>
-          <Button onClick={handleLoadSampleData} disabled={loading}>
+          <Button onClick={handleLoadSampleData} disabled={loading || resetting}>
             <Sparkles className="w-4 h-4 mr-2" />
             Load Sample Data
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start fresh?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all your local data including bases, blocks, pay periods, and templates. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmReset} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, delete everything
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
