@@ -132,20 +132,17 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
           </div>
 
           <DialogFooter className="flex items-center justify-between">
-            <div className="flex gap-2">
+            <div>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span>
-                      <Button 
-                        variant="destructive" 
-                        disabled
-                        className="cursor-not-allowed opacity-50"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete Block
-                      </Button>
-                    </span>
+                    <Button 
+                      variant="destructive" 
+                      disabled
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete Block
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Nothing to delete yet</p>
@@ -157,15 +154,12 @@ export function AddFixedBlockDialog({ open, onOpenChange, bandId, bandInfo }: Ad
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span>
-                      <Button 
-                        variant="outline" 
-                        disabled
-                        className="cursor-not-allowed opacity-50"
-                      >
-                        Duplicate to...
-                      </Button>
-                    </span>
+                    <Button 
+                      variant="outline" 
+                      disabled
+                    >
+                      Duplicate to...
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Save the block first to duplicate it</p>
