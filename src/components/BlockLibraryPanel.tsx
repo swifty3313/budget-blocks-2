@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { Library, Plus, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
+import { joinDisplayValues } from "@/lib/displayUtils";
 import { showUndoToast } from "@/lib/undoToast";
 import { useState } from "react";
 
@@ -108,7 +109,7 @@ export function BlockLibraryPanel() {
                 </div>
 
                 <div className="text-xs text-muted-foreground">
-                  <p>Owners: {[...new Set(template.rows.map(r => r.owner))].join(', ')}</p>
+                  <p>Owners: {joinDisplayValues([...new Set(template.rows.map(r => r.owner))])}</p>
                   <p>{template.rows.length} transaction(s)</p>
                   {template.recurrence && (
                     <p className="mt-1">

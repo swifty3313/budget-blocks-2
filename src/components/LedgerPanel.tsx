@@ -14,6 +14,7 @@ import { format, startOfMonth, endOfMonth, addMonths, subMonths, isSameMonth, di
 import { toast } from "sonner";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { showUndoToast } from "@/lib/undoToast";
+import { joinDisplayValues } from "@/lib/displayUtils";
 import { ManageBlockDialog } from "@/components/ManageBlockDialog";
 import { CalculatorPopover } from "@/components/CalculatorPopover";
 import { LedgerFilterBar, type LedgerFilters } from "@/components/LedgerFilterBar";
@@ -771,7 +772,7 @@ export function LedgerPanel({
                                     </Badge>
                                   </div>
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    {format(block.date, 'MMM d, yyyy')} • {[...new Set(block.rows.map(r => r.owner))].join(', ')}
+                                    {format(block.date, 'MMM d, yyyy')} • {joinDisplayValues([...new Set(block.rows.map(r => r.owner))])}
                                   </p>
                                 </div>
                               </div>

@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useStore } from "@/lib/store";
 import { FileText, DollarSign, Receipt, ArrowLeftRight } from "lucide-react";
 import type { Block } from "@/types";
+import { joinDisplayValues } from "@/lib/displayUtils";
 
 interface TemplateChooserDialogProps {
   open: boolean;
@@ -77,7 +78,7 @@ export function TemplateChooserDialog({
                       <h4 className="font-semibold text-sm mb-1">{template.title}</h4>
                       <p className="text-xs text-muted-foreground">
                         {template.rows.length} row{template.rows.length !== 1 ? 's' : ''}
-                        {template.rows.length > 0 && ` • ${[...new Set(template.rows.map(r => r.owner))].filter(Boolean).join(', ')}`}
+                        {template.rows.length > 0 && ` • ${joinDisplayValues([...new Set(template.rows.map(r => r.owner))])}`}
                       </p>
                     </div>
                   </div>

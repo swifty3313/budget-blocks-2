@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
 import { ApplyFlowTemplateDialog } from "@/components/ApplyFlowTemplateDialog";
+import { joinDisplayValues } from "@/lib/displayUtils";
 import type { BlockType, Row } from "@/types";
 
 interface NewBlockDialogProps {
@@ -1221,7 +1222,7 @@ export function NewBlockDialog({ open, onOpenChange, bandId, bandInfo, initialBa
                           <span className="text-sm font-bold">{formatCurrency(total)}</span>
                         </div>
                         <div className="text-xs text-muted-foreground space-y-0.5">
-                          <p className="truncate">Owners: {[...new Set(template.rows.map(r => r.owner))].join(', ')}</p>
+                          <p className="truncate">Owners: {joinDisplayValues([...new Set(template.rows.map(r => r.owner))])}</p>
                           <p>{template.rows.length} row(s)</p>
                         </div>
                         <div className="flex gap-1 pt-1">

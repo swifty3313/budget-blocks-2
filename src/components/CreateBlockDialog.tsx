@@ -22,6 +22,7 @@ import { DuplicateBlockDialog } from "@/components/DuplicateBlockDialog";
 import { DeleteConfirmDialog } from "@/components/shared/DeleteConfirmDialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { showPostInsertToast } from "@/lib/postInsertToast";
+import { joinDisplayValues } from "@/lib/displayUtils";
 
 interface CreateBlockDialogProps {
   open: boolean;
@@ -706,7 +707,7 @@ export function CreateBlockDialog({ open, onOpenChange, bandId, bandInfo, blockT
                           <div className="flex gap-2 mt-2 text-xs text-muted-foreground">
                             <span>{template.rows.length} rows</span>
                             <span>•</span>
-                            <span>{[...new Set(template.rows.map(r => r.owner))].join(', ')}</span>
+                            <span>{joinDisplayValues([...new Set(template.rows.map(r => r.owner))])}</span>
                           </div>
                         </div>
                         <Badge>{template.type}</Badge>
